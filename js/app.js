@@ -567,22 +567,9 @@
           <div><strong>We’ll skip:</strong> ${tally(combined.dealbreakers, LABELS.dealbreaker)}</div>
         </div>
       </section>
-      <section class="card stack">
-        <h2>Where are you eating?</h2>
-        <div class="loc-grid">
-          <div class="row" style="flex-wrap:nowrap">
-            <input type="text" id="town" inputmode="${DEMO_ONLY ? 'numeric' : 'text'}" autocomplete="postal-code"
-              placeholder="${DEMO_ONLY ? 'ZIP code, e.g. 95630' : 'ZIP code or city'}" value="${esc(state.lastQuery || owner()?.zip || '')}" />
-            <button class="primary" data-action="search-town">See picks</button>
-          </div>
-        </div>
-        ${status}
-      </section>
-      <section><button class="ghost" data-action="home">← Change who’s joining</button></section>`;
-    const town = document.getElementById('town');
-    town?.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') searchTown();
-    });
+      ${status}
+      <section><button class="ghost" data-action="home">← Change who’s joining</button></section>
+      <div class="actionbar"><button class="primary block" data-action="see-picks">See picks</button></div>`;
   }
 
   function renderResults() {
@@ -653,8 +640,7 @@
             .join('')}</ul>
         </details></section>` : ''}
       <section class="row">
-        <button data-action="to-group">← Change location</button>
-        <button class="ghost" data-action="home">Change who’s joining</button>
+        <button class="ghost" data-action="home">← Change who’s joining</button>
       </section>`;
   }
 
@@ -827,37 +813,24 @@
     return { lat, lon, label: `${town} (${zip})` };
   }
 
-  async function searchTown() {
-    const text = document.getElementById('town')?.value.trim();
-    if (!text) return;
-    state.lastQuery = text;
-    const zip = text.match(/^\d{5}$/) ? REGION.zips[text] : null;
-    if (zip) {
-      const me = owner();
-      if (me && me.zip !== text) {
-        me.zip = text;
-        saveProfiles();
+  /** Picks always use the ZIP from your quiz. No ZIP yet (an older profile): ask that one question. */
+  async function seePicks() {
+    const me = owner();
+    const zip = me?.zip;
+    if (zip && REGION.zips[zip]) return findAt(zipLocation(zip));
+    if (zip && !DEMO_ONLY) {
+      try {
+        return findAt({ ...(await Places.geocode(`${zip}, USA`)), label: zip });
+      } catch (err) {
+        state.status = { kind: 'error', text: err.message };
+        return go('group');
       }
-      return findAt(zipLocation(text));
     }
-    if (DEMO_ONLY) {
-      state.status = {
-        kind: 'error',
-        text: /^\d{5}$/.test(text)
-          ? 'We’re starting with the Sacramento area. Try a ZIP code there, like 95630 or 95816.'
-          : 'Try a 5-digit ZIP code, like 95630.',
-      };
-      return render();
-    }
-    state.status = { kind: 'loading', text: `Looking up ${text}…` };
+    startQuiz(me);
+    state.quiz.step = state.quiz.steps.length - 1;
     render();
-    try {
-      findAt(await Places.geocode(/^\d{5}$/.test(text) ? `${text}, USA` : text));
-    } catch (err) {
-      state.status = { kind: 'error', text: err.message };
-      render();
-    }
   }
+
 
   // ---------------------------------------------------------------------------
   // Nearby with the app open (live presence, where the host offers a shared room)
@@ -1096,12 +1069,10 @@
     'quiz-back': quizBack,
     'to-group': () => {
       state.status = null;
-      const zip = owner()?.zip;
-      const joining = selectedProfiles().length > 1;
-      if (!joining && zipValid(zip) && REGION.zips[zip]) return findAt(zipLocation(zip));
-      go('group');
+      if (selectedProfiles().length > 1) return go('group');
+      seePicks();
     },
-    'search-town': searchTown,
+    'see-picks': () => seePicks(),
     loved: (el) => {
       const rid = el.dataset.rid;
       if (!signedIn()) {
