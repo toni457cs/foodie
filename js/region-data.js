@@ -75,6 +75,7 @@
       cuisine,
       address: address ? `${address}, ${town}, CA` : `${town}, CA`,
       town,
+      venue,
       noise: v.noise,
       price: null,
       parking: null,

@@ -94,6 +94,7 @@
       prompt: 'What makes a place feel special?',
       hint: 'Pick up to 2, or skip.',
     },
+    { id: 'zip', type: 'zip', ownerOnly: true, prompt: 'Where are you eating?', placeholder: 'ZIP code, e.g. 95630' },
   ];
 
   const label = (list) => Object.fromEntries(list.map((o) => [o.value, o.label]));

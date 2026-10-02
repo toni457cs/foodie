@@ -20,6 +20,7 @@
   const STORAGE_KEY = 'foodie.profiles.v1';
   const AUTH_KEY = 'foodie.auth.v1'; // prototype sign-in state: email + 2FA flag, never a password
   const HIDDEN_KEY = 'foodie.hidden'; // places swiped away this session
+  const PASSED_KEY = 'foodie.passed'; // their cuisines, which lower similar matches this session
   const CODE_PREFIX = 'FOODIE1:';
   const $app = document.getElementById('app');
 
@@ -37,6 +38,7 @@
     justFinished: null,
     auth: loadJSON('localStorage', AUTH_KEY), // null = not chosen yet; {guest: true} or {email, twoFactor}
     hidden: new Set(loadJSON('sessionStorage', HIDDEN_KEY) || []),
+    passed: loadJSON('sessionStorage', PASSED_KEY) || {}, // cuisine → swipes this session
     authFlow: null, // { mode: 'login'|'signup', step: 'form'|'code', email, code, twoFactor, next }
   };
   state.profiles.forEach((p) => state.selected.add(p.id));
@@ -148,6 +150,7 @@
   }
 
   const pct = (x) => Math.round(x * 100);
+  const VENUE_WORD = { restaurant: 'Sit-down', casual: 'Casual', cafe: 'Café', pub: 'Pub' };
   const scoreClass = (x) => (x >= 0.7 ? 'score-good' : x >= 0.5 ? 'score-ok' : 'score-bad');
   const names = (list) => (list.length <= 2 ? list.join(' & ') : `${list.slice(0, -1).join(', ')} & ${list.at(-1)}`);
   const owner = () => state.profiles.find((p) => p.owner);
@@ -158,14 +161,21 @@
   function profileFacts(p) {
     const row = (k, v) => (v ? `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>` : '');
     const list = (vals, labels) => arr(vals).map((v) => labels[v] || v).join(', ');
+    const usual = Match.topGenres(p);
+    const craving = list(p.cuisines, LABELS.cuisine);
+    // Today's craving counts once in history; "something different" means it hasn't been picked before.
+    const counts = p.history?.cuisines || {};
+    const fresh = (p.history?.sessions || 0) > 1 && arr(p.cuisines).some((c) => c !== 'any' && (counts[c] || 0) <= 1);
     return [
-      row('Craving', list(p.cuisines, LABELS.cuisine)),
+      row('Craving', craving && fresh ? `${craving} (something different)` : craving),
+      row('Near', p.zip ? `${zipTown(p.zip)} (${p.zip})` : ''),
       row('Mood', p.novelty === 'new' ? 'Something new' : p.novelty ? 'My favorites' : ''),
       row('Noise', LABELS.noise[p.noise]),
       row('Wait', LABELS.wait[p.maxWait]),
       row('With', LABELS.company[p.diningWith]),
       row('I love', list(p.vibes, LABELS.vibe)),
       row('Dealbreakers', list(p.dealbreakers, LABELS.dealbreaker) || 'None'),
+      row('Usually', usual.map((c) => LABELS.cuisine[c] || c).join(', ')),
     ].join('');
   }
 
@@ -342,6 +352,43 @@
       </div>`;
   }
 
+  const STAR = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 1.8l2.5 5.3 5.7.7-4.2 3.9 1.1 5.7L10 14.6l-5.1 2.8 1.1-5.7L1.8 7.8l5.7-.7z"/></svg>';
+
+  function favoritesCard(me) {
+    if (!signedIn()) {
+      return `<section class="card stack">
+        <h2>Your favorites</h2>
+        <p class="small muted">Log in to save places and rate them.</p>
+        <div><button class="small" data-action="auth-start" data-mode="login">Log in</button></div>
+      </section>`;
+    }
+    const saved = me.saved || {};
+    const ids = arr(me.favorites).filter((id) => saved[id]);
+    if (!ids.length) {
+      return `<section class="card stack"><h2>Your favorites</h2>
+        <p class="small muted">Tap Save on a pick and it shows up here to rate.</p></section>`;
+    }
+    const stars = (id) => {
+      const current = (me.ratings || {})[id] || 0;
+      return `<div class="stars" role="group" aria-label="Rate ${esc(saved[id].name)}">${[1, 2, 3, 4, 5]
+        .map((n) => `<button class="star ${n <= current ? 'on' : ''}" data-action="rate" data-rid="${esc(id)}" data-stars="${n}"
+          aria-label="${n} of 5" aria-pressed="${n === current}">${STAR}</button>`)
+        .join('')}</div>`;
+    };
+    return `<section class="card stack">
+      <h2>Your favorites</h2>
+      <div class="favs">${ids
+        .map((id) => `<div class="fav">
+          <div class="who"><strong>${esc(saved[id].name)}</strong>
+            <div class="small muted">${esc([saved[id].cuisine.map((c) => LABELS.cuisine[c] || c).join(', '), saved[id].town].filter(Boolean).join(' · '))}</div></div>
+          ${stars(id)}
+          <button class="ghost small" data-action="unfavorite" data-rid="${esc(id)}" aria-label="Remove ${esc(saved[id].name)}">Remove</button>
+        </div>`)
+        .join('')}</div>
+      <p class="small muted">Your ratings shape future picks.</p>
+    </section>`;
+  }
+
   function renderTable() {
     const me = owner();
     if (!me) return go('welcome');
@@ -363,6 +410,7 @@
         </div>
       </section>
 
+      ${favoritesCard(me)}
       <section class="stack">
         <div>
           <h2>Who’s joining you?</h2>
@@ -402,8 +450,11 @@
     const value = answers[q.id];
     const progress = `<div class="progress" aria-hidden="true"><span style="width:${pct((step + 1) / steps.length)}%"></span></div>`;
     let body;
-    if (q.type === 'text') {
-      body = `<input type="text" id="q-text" maxlength="40" placeholder="${esc(q.placeholder)}" value="${esc(value || '')}" autocomplete="given-name" />`;
+    if (q.type === 'text' || q.type === 'zip') {
+      const zip = q.type === 'zip';
+      body = `<input type="text" id="q-text" maxlength="${zip ? 5 : 40}" placeholder="${esc(q.placeholder)}" value="${esc(value || '')}"
+        ${zip ? 'inputmode="numeric" autocomplete="postal-code"' : 'autocomplete="given-name"'} />
+        ${zip ? `<p id="zip-note" class="small muted" ${zipValid(value) || !value ? 'hidden' : ''}>${esc(zipNote(value))}</p>` : ''}`;
     } else {
       const isOn = (v) => (q.type === 'multi' ? arr(value).includes(v) : value === v);
       const full = q.type === 'multi' && q.max && arr(value).filter((v) => v !== q.exclusive).length >= q.max;
@@ -419,7 +470,11 @@
           .join('')}
       </div>`;
     }
-    const answered = q.type === 'multi' ? arr(value).length > 0 : q.type === 'text' ? !!(value || '').trim() : value !== undefined;
+    const answered =
+      q.type === 'multi' ? arr(value).length > 0
+        : q.type === 'zip' ? zipValid(value)
+          : q.type === 'text' ? !!(value || '').trim()
+            : value !== undefined;
     const showNext = q.type !== 'single';
     const last = step === steps.length - 1;
     $app.innerHTML = `
@@ -433,15 +488,21 @@
         ${showNext ? `<button class="primary" data-action="quiz-next" ${answered || q.optional ? '' : 'disabled'}>
           ${last ? 'Finish' : answered || !q.optional ? 'Next →' : 'Skip →'}</button>` : ''}
       </div>`;
-    if (q.type === 'text') {
+    if (q.type === 'text' || q.type === 'zip') {
       const input = document.getElementById('q-text');
+      const ok = () => (q.type === 'zip' ? zipValid(input.value) : !!input.value.trim());
       input.focus();
       input.addEventListener('input', () => {
-        answers.name = input.value;
-        $app.querySelector('[data-action="quiz-next"]').disabled = !input.value.trim();
+        answers[q.id] = input.value.trim();
+        $app.querySelector('[data-action="quiz-next"]').disabled = !ok();
+        const note = document.getElementById('zip-note');
+        if (note) {
+          note.hidden = ok() || input.value.trim().length < 5;
+          note.textContent = zipNote(input.value);
+        }
       });
       input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && input.value.trim()) quizNext();
+        if (e.key === 'Enter' && ok()) quizNext();
       });
     }
   }
@@ -511,8 +572,8 @@
         <div class="loc-grid">
           <div class="row" style="flex-wrap:nowrap">
             <input type="text" id="town" inputmode="${DEMO_ONLY ? 'numeric' : 'text'}" autocomplete="postal-code"
-              placeholder="${DEMO_ONLY ? 'ZIP code, e.g. 95630' : 'ZIP code or city'}" value="${esc(state.lastQuery || '')}" />
-            <button class="primary" data-action="search-town">Go</button>
+              placeholder="${DEMO_ONLY ? 'ZIP code, e.g. 95630' : 'ZIP code or city'}" value="${esc(state.lastQuery || owner()?.zip || '')}" />
+            <button class="primary" data-action="search-town">See picks</button>
           </div>
         </div>
         ${status}
@@ -536,6 +597,7 @@
       const r = res.restaurant;
       const price = r.price ? '$'.repeat(r.price) : '';
       const meta = [
+        VENUE_WORD[r.venue] || '',
         r.cuisine.map((c) => LABELS.cuisine[c] || c).join(', '),
         price,
         r.distanceKm != null ? `${loc.saved ? '~' : ''}${(r.distanceKm * 0.621).toFixed(1)} mi` : '',
@@ -556,7 +618,7 @@
           </div>
           <div class="match"><strong>${pct(res.score)}%</strong><span class="small muted">match</span></div>
         </div>
-        ${res.highlights.length ? `<p class="highlights">${res.highlights.slice(0, 3).map((h) => esc(h.text)).join(' · ')}</p>` : ''}
+        ${res.highlights.length ? `<ul class="why">${res.highlights.slice(0, 3).map((h) => `<li>${esc(h.text)}${who(h)}</li>`).join('')}</ul>` : ''}
         ${group.length > 1 ? `<details><summary>How each person feels about it</summary>
           <div class="stack" style="margin-top:8px">${res.members
             .map(
@@ -614,10 +676,15 @@
   // Quiz logic
   // ---------------------------------------------------------------------------
 
+  // ZIP codes: the saved Sacramento list in previews; any 5-digit US ZIP in the full app.
+  const zipValid = (v) => /^\d{5}$/.test(v || '') && (!DEMO_ONLY || !!REGION.zips[v]);
+  const zipNote = (v) => (/^\d{5}$/.test(v || '') ? 'We’re starting with the Sacramento area. Try 95630 or 95816.' : '');
+  const zipTown = (zip) => (REGION.zips[zip] ? REGION.zips[zip][2] : zip);
+
   function startQuiz(existing, { skipName = false, isNew = false } = {}) {
     const answers = existing ? structuredClone(existing) : { cuisines: [], dealbreakers: [], vibes: [] };
     const isOwner = !!answers.owner;
-    const steps = skipName || isOwner ? QUIZ.filter((q) => q.id !== 'name') : QUIZ;
+    const steps = QUIZ.filter((q) => (q.id !== 'name' || !(skipName || isOwner)) && (!q.ownerOnly || isOwner));
     state.quiz = { step: 0, steps, answers, owner: isOwner, isNew, editingId: isNew ? null : existing?.id || null };
     go('quiz');
   }
@@ -678,6 +745,14 @@
       id: state.quiz.editingId || a.id || newId(),
       updatedAt: new Date().toISOString(),
     };
+    if (profile.owner) {
+      // Track top genres over time. Today's craving still wins in matching; history only
+      // steers "Surprise me" days.
+      const counts = { ...(profile.history?.cuisines || {}) };
+      for (const c of arr(profile.cuisines)) if (c !== 'any') counts[c] = (counts[c] || 0) + 1;
+      profile.history = { cuisines: counts, sessions: (profile.history?.sessions || 0) + 1 };
+      if (profile.zip) state.myTown = zipTown(profile.zip);
+    }
     const i = state.profiles.findIndex((p) => p.id === profile.id);
     if (i >= 0) state.profiles[i] = profile;
     else state.profiles.push(profile);
@@ -731,13 +806,25 @@
         saved = true;
       }
       state.location = { ...location, saved };
-      state.outcome = Match.recommend(restaurants, selectedProfiles(), { now: new Date() });
+      state.lastRestaurants = restaurants;
+      rescore();
       state.status = null;
       go('results');
     } catch (err) {
       state.status = { kind: 'error', text: err.message || String(err) };
-      render();
+      go('group');
     }
+  }
+
+  function rescore() {
+    state.outcome = Match.recommend(state.lastRestaurants || [], selectedProfiles(), { now: new Date(), passedCuisines: state.passed });
+  }
+
+  function zipLocation(zip) {
+    const [lat, lon, town] = REGION.zips[zip];
+    state.myTown = town;
+    syncPresence();
+    return { lat, lon, label: `${town} (${zip})` };
   }
 
   async function searchTown() {
@@ -746,9 +833,12 @@
     state.lastQuery = text;
     const zip = text.match(/^\d{5}$/) ? REGION.zips[text] : null;
     if (zip) {
-      state.myTown = zip[2];
-      syncPresence();
-      return findAt({ lat: zip[0], lon: zip[1], label: `${zip[2]} (${text})` });
+      const me = owner();
+      if (me && me.zip !== text) {
+        me.zip = text;
+        saveProfiles();
+      }
+      return findAt(zipLocation(text));
     }
     if (DEMO_ONLY) {
       state.status = {
@@ -901,13 +991,34 @@
       toast('Logged out');
       render();
     },
+    rate: (el) => {
+      const me = owner();
+      if (!me) return;
+      const stars = Number(el.dataset.stars);
+      me.ratings = { ...(me.ratings || {}), [el.dataset.rid]: stars };
+      saveProfiles();
+      render();
+    },
+    unfavorite: (el) => {
+      const me = owner();
+      if (!me) return;
+      const rid = el.dataset.rid;
+      me.favorites = arr(me.favorites).filter((x) => x !== rid);
+      const { [rid]: _, ...rest } = me.saved || {};
+      me.saved = rest;
+      saveProfiles();
+      render();
+    },
     'toast-action': () => {
       document.getElementById('toast').hidden = true;
       toast.action?.();
     },
     unhide: () => {
       state.hidden.clear();
+      state.passed = {};
       saveJSON('sessionStorage', HIDDEN_KEY, null);
+      saveJSON('sessionStorage', PASSED_KEY, null);
+      rescore();
       render();
     },
     'add-here': () => startQuiz(null),
@@ -931,8 +1042,10 @@
       state.selected.clear();
       state.auth = null;
       state.hidden.clear();
+      state.passed = {};
       saveJSON('localStorage', AUTH_KEY, null);
       saveJSON('sessionStorage', HIDDEN_KEY, null);
+      saveJSON('sessionStorage', PASSED_KEY, null);
       saveProfiles();
       syncPresence();
       go('welcome');
@@ -983,6 +1096,9 @@
     'quiz-back': quizBack,
     'to-group': () => {
       state.status = null;
+      const zip = owner()?.zip;
+      const joining = selectedProfiles().length > 1;
+      if (!joining && zipValid(zip) && REGION.zips[zip]) return findAt(zipLocation(zip));
       go('group');
     },
     'search-town': searchTown,
@@ -1002,10 +1118,13 @@
         p.favorites = [...new Set([...arr(p.favorites), rid])];
         p.visited = [...new Set([...arr(p.visited), rid])];
       }
+      const r = (state.lastRestaurants || []).find((x) => x.id === rid);
+      const me = owner();
+      if (r && me) me.saved = { ...(me.saved || {}), [rid]: { name: r.name, town: r.town || '', cuisine: arr(r.cuisine) } };
       saveProfiles();
       el.disabled = true;
-      el.textContent = 'Saved to favorites';
-      toast('Saved. “Stick to favorites” will rank it higher next time.');
+      el.textContent = 'Saved';
+      toast('Saved to your favorites. Rate it from your profile.');
     },
   };
 
@@ -1033,16 +1152,23 @@
     card.style.transition = 'transform 0.22s ease, opacity 0.22s ease';
     card.style.transform = `translateX(${direction * 110}%)`;
     card.style.opacity = '0';
+    const cuisines = arr((state.lastRestaurants || []).find((r) => r.id === rid)?.cuisine);
+    const savePass = () => {
+      saveJSON('sessionStorage', HIDDEN_KEY, [...state.hidden]);
+      saveJSON('sessionStorage', PASSED_KEY, state.passed);
+      rescore();
+      render();
+    };
     setTimeout(() => {
       state.hidden.add(rid);
-      saveJSON('sessionStorage', HIDDEN_KEY, [...state.hidden]);
-      render();
-      toast(`${name} hidden`, {
+      for (const c of cuisines) state.passed[c] = (state.passed[c] || 0) + 1;
+      savePass();
+      toast(`${name} hidden. Similar places rank a little lower.`, {
         label: 'Undo',
         run: () => {
           state.hidden.delete(rid);
-          saveJSON('sessionStorage', HIDDEN_KEY, [...state.hidden]);
-          render();
+          for (const c of cuisines) if (state.passed[c]) state.passed[c] -= 1;
+          savePass();
         },
       });
     }, 200);

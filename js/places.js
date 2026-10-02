@@ -104,6 +104,7 @@
 
     return {
       id: `osm-${el.type}-${el.id}`,
+      venue: { cafe: 'cafe', fast_food: 'casual', food_court: 'casual', pub: 'pub', bar: 'pub', biergarten: 'pub', brewery: 'pub' }[venue] || 'restaurant',
       name: t.name,
       cuisine: [...cuisine],
       noise,

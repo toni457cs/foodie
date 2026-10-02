@@ -125,7 +125,7 @@ test('least-misery blend prefers a place everyone is OK with over one that split
     { now: FRIDAY_7PM },
   );
   assert.equal(results[0].restaurant.name, 'Taqueria');
-  assert.equal(results[0].highlights[0].text, 'Mexican');
+  assert.equal(results[0].highlights[0].text, 'Your Mexican craving');
   assert.deepEqual(results[0].highlights[0].who, ['Ana', 'Ben']);
 });
 
@@ -220,4 +220,38 @@ test('region data: Petra Greek in Folsom and Midtown, ZIPs resolve inside the re
     const km = Places.haversineKm(lat, lon, DEMO.center.lat, DEMO.center.lon);
     assert.ok(km <= DEMO.radiusKm, `${zip} is ${km} km out`);
   }
+});
+
+test('history steers only "Surprise me"; a specific craving today overrides it', () => {
+  const sushiFan = place({ name: 'Sushi Bar', cuisine: ['japanese'] });
+  const taqueria = place({ name: 'Taqueria', cuisine: ['mexican'] });
+  const history = { cuisines: { mexican: 6, italian: 2 } };
+  const surprise = profile({ name: 'Mia', cuisines: ['any'], history });
+  assert.equal(Match.recommend([sushiFan, taqueria], [surprise], { now: FRIDAY_7PM }).results[0].restaurant.name, 'Taqueria');
+  const sushiTonight = profile({ name: 'Mia', cuisines: ['japanese'], history });
+  assert.equal(Match.recommend([taqueria, sushiFan], [sushiTonight], { now: FRIDAY_7PM }).results[0].restaurant.name, 'Sushi Bar');
+  assert.deepEqual(Match.topGenres(surprise), ['mexican', 'italian']);
+});
+
+test('ratings nudge a person’s score up or down', () => {
+  const spot = place({ name: 'Spot', id: 'spot' });
+  const base = Match.scoreMember(spot, profile({ name: 'A' })).total;
+  const loved = Match.scoreMember(spot, profile({ name: 'A', ratings: { spot: 5 } }));
+  const meh = Match.scoreMember(spot, profile({ name: 'A', ratings: { spot: 1 } }));
+  assert.ok(loved.total > base && meh.total < base);
+  assert.equal(loved.likes[0], 'You rated it 5 of 5');
+});
+
+test('swiping a place away lowers the match for the same cuisine this session', () => {
+  const a = place({ name: 'Thai A', cuisine: ['thai'] });
+  const b = place({ name: 'Pizza B', cuisine: ['italian'] });
+  const diner = [profile({ name: 'A' })];
+  const before = Match.recommend([a, b], diner, { now: FRIDAY_7PM }).results.find((r) => r.restaurant.name === 'Thai A').score;
+  const after = Match.recommend([a, b], diner, { now: FRIDAY_7PM, passedCuisines: { thai: 1 } }).results.find((r) => r.restaurant.name === 'Thai A').score;
+  assert.ok(after < before);
+});
+
+test('occasion highlights say what kind of place it is', () => {
+  const pub = place({ name: 'Pub', venue: 'pub', goodFor: ['friends'] });
+  assert.ok(Match.scoreMember(pub, profile({ name: 'A', diningWith: 'friends' }), { occasion: 'friends' }).likes.includes('Pub atmosphere for a night out'));
 });

@@ -26,10 +26,12 @@ You can also double-click `index.html`. Location features work best over `http:/
    5. How long will you wait for a table?
    6. Who are you dining with today?
    7. *(optional, up to 2)* What makes a place feel special? Views, design & lighting, patio, live music…
+   8. Where are you eating? (ZIP code; asked of the session owner only)
 3. **Who's joining you?** Your profile is always at the table. Add people by having them take the quiz on your phone, or by pasting their share code (`FOODIE1:…`) from their own phone. You can also tap "Just me". Where the page runs as a shared Claude artifact, **Nearby with the app open** lists everyone who has it open right now. Each person shares their first name, taste answers and the town from their last ZIP search, never coordinates. Tap Add to bring them to your table. Previews also list four test users (Priya, Marcus, Jules and Sam, each marked "(test)") so group picks can be tried alone.
-4. **Location**: enter a ZIP code (or a city, in the full app).
-5. **Results**: swipe a card left or right (or press Delete) to hide it for this session, with Undo and "Show hidden". A ranked list with a group match %, *why* it fits (and for whom), concerns, how each person feels about it, and a "ruled out" list with reasons.
-6. **❤️ We loved it** saves the place to everyone's favorites, so "Stick to favorites" ranks it higher next time.
+4. **Location**: the ZIP from the quiz. Eating alone goes straight to picks; groups see table harmony first and can change the ZIP there.
+5. **Results**: each card says what kind of place it is (sit-down, casual, café, pub) and why it fits, e.g. "Your Seafood craving", "Patio seating", "Sit-down tables for a group". Swipe a card left or right (or press Delete) to hide it for this session. Similar places (same cuisine) then rank a little lower, with Undo and "Show hidden". A ranked list with a group match %, *why* it fits (and for whom), concerns, how each person feels about it, and a "ruled out" list with reasons.
+6. **Favorites and ratings** (logged in): saved places appear on your profile with 1–5 stars. Ratings nudge future scores up or down (±0.06 per star from 3).
+7. **Top genres over time**: each quiz adds your cravings to a history, and genres picked in 2+ sessions show as "Usually". Today's craving always wins. History only steers "Surprise me" days, and a new craving is marked "(something different)".
 
 ## How the research shaped the algorithm (`js/matching.js`)
 

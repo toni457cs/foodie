@@ -38,9 +38,35 @@
   const NOISE_LEVEL = { quiet: 0, buzz: 1, high: 2 };
   const NOISE_WORD = ['quiet', 'buzzing', 'high-energy'];
 
-  // Short highlight phrases for result cards.
-  const SHORT_VIBE = { views: 'Views', design: 'Beautiful design', patio: 'Patio', live_music: 'Live music', cozy: 'Cozy', local: 'Local character' };
-  const OCCASION_PHRASE = { partner: 'Date night', friends: 'Great with friends', family: 'Family-friendly', coworkers: 'Good for coworkers' };
+  // Highlight phrases for result cards: say what the place is and which answer it matches.
+  const VIBE_PHRASE = {
+    views: 'Has views', design: 'Thoughtfully designed room', patio: 'Patio seating',
+    live_music: 'Live music', cozy: 'Cozy, intimate room', local: 'Local character',
+  };
+  const NOISE_PHRASE = { quiet: 'Calm and quiet, as you like it', buzz: 'Relaxed buzz, as you like it', high: 'Lively, as you like it' };
+  // Venue type × who you're with. Venue type comes from the listing (sit-down, casual, café, pub).
+  const OCCASION_PHRASE = {
+    restaurant: { partner: 'Sit-down dining for a date', friends: 'Sit-down tables for a group', family: 'Sit-down meal for the family', coworkers: 'Easy sit-down for coworkers' },
+    casual: { partner: 'Casual, low-key date', friends: 'Casual and easy for a group', family: 'Casual, quick family meal', coworkers: 'Quick casual lunch for coworkers' },
+    cafe: { partner: 'Relaxed café date', friends: 'Café for catching up', family: 'Laid-back café for family', coworkers: 'Café for a work chat' },
+    pub: { partner: 'Relaxed pub date', friends: 'Pub atmosphere for a night out', family: 'Pub food for the family', coworkers: 'Pub for after-work drinks' },
+  };
+  const FALLBACK_OCCASION = { partner: 'Good for a date', friends: 'Good for a group', family: 'Good for the family', coworkers: 'Good for coworkers' };
+
+  // Learning from what people do.
+  const RATING_WEIGHT = 0.06; // per star away from 3, on a person's total
+  const PASS_PENALTY = 0.07; // per swiped-away place sharing a cuisine, this session
+  const MAX_PASS_PENALTY = 0.2;
+
+  /** A person's usual cuisines: picked in at least 2 sessions, most first. */
+  function topGenres(p, n = 3) {
+    const counts = (p.history && p.history.cuisines) || {};
+    return Object.entries(counts)
+      .filter(([c, k]) => c !== 'any' && k >= 2)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, n)
+      .map(([c]) => c);
+  }
 
   // Ideal popularity for each noise preference: quiet people still like *some* buzz.
   const POPULARITY_SWEET_SPOT = { quiet: 0.45, buzz: 0.65, high: 0.85 };
@@ -97,10 +123,18 @@
 
   function cuisineFit(r, p, out) {
     const wants = list(p.cuisines);
-    if (!wants.length || wants.includes('any')) return 0.6;
+    if (!wants.length || wants.includes('any')) {
+      // No craving today: lean on what they usually pick. A specific craving always overrides history.
+      const usual = list(r.cuisine).find((c) => topGenres(p).includes(c));
+      if (usual) {
+        out.likes.push(`Often your pick: ${L.cuisine[usual] || usual}`);
+        return 0.75;
+      }
+      return 0.6;
+    }
     const hit = list(r.cuisine).find((c) => wants.includes(c));
     if (hit) {
-      out.likes.push(L.cuisine[hit] || hit);
+      out.likes.push(`Your ${L.cuisine[hit] || hit} craving`);
       return 1;
     }
     out.concerns.push('not what they’re craving');
@@ -112,7 +146,7 @@
     let noiseFit = 0.5;
     if (known(r.noise)) {
       noiseFit = 1 - Math.abs(r.noise - pref) / 2;
-      if (noiseFit >= 0.85) out.likes.push(L.noise[p.noise] || 'Right noise level');
+      if (noiseFit >= 0.85) out.likes.push(NOISE_PHRASE[p.noise] || 'The noise level you like');
       else if (noiseFit <= 0.5) out.concerns.push(r.noise > pref ? 'louder than they like' : 'quieter than they like');
     }
 
@@ -121,7 +155,7 @@
     if (wanted.length) {
       const matched = wanted.filter((v) => list(r.vibes).includes(v));
       vibeFit = 0.2 + (0.8 * matched.length) / wanted.length;
-      for (const v of matched) out.likes.push(SHORT_VIBE[v] || v);
+      for (const v of matched) out.likes.push(VIBE_PHRASE[v] || v);
     }
 
     const cleanFit = known(r.cleanliness) ? r.cleanliness : 0.5;
@@ -137,7 +171,7 @@
       fit -= 0.3;
       out.concerns.push('busy and chaotic');
     } else if (fit >= 0.8 && r.popularity >= 0.6) {
-      out.likes.push('Popular');
+      out.likes.push('Popular spot');
     }
     return clamp01(fit);
   }
@@ -161,7 +195,7 @@
       return 1;
     }
     if (isFavorite) {
-      out.likes.push('A favorite');
+      out.likes.push('One of your favorites');
       return 1;
     }
     if (beenHere) return 0.75;
@@ -173,11 +207,11 @@
       // Research: alone, people want "something clean and quick", not an experience.
       const quick = r.quick ? 1 : 0.3;
       const clean = known(r.cleanliness) ? r.cleanliness : 0.5;
-      if (r.quick && clean >= 0.7) out.likes.push('Quick bite');
+      if (r.quick && clean >= 0.7) out.likes.push('Quick and easy on your own');
       return 0.6 * quick + 0.4 * clean;
     }
     if (list(r.goodFor).includes(occasion)) {
-      out.likes.push(OCCASION_PHRASE[occasion] || 'Good fit');
+      out.likes.push((OCCASION_PHRASE[r.venue] || {})[occasion] || FALLBACK_OCCASION[occasion] || 'Good fit');
       return 1;
     }
     return 0.4;
@@ -197,6 +231,11 @@
     };
     let total = 0;
     for (const [k, w] of Object.entries(WEIGHTS)) total += w * parts[k];
+    const stars = p.ratings && p.ratings[r.id];
+    if (stars >= 1 && stars <= 5) {
+      total = clamp01(total + (stars - 3) * RATING_WEIGHT);
+      if (stars >= 4) out.likes.unshift(`You rated it ${stars} of 5`);
+    }
     for (const k of Object.keys(parts)) parts[k] = round2(parts[k]);
     return { total: round2(total), parts, likes: out.likes, concerns: out.concerns };
   }
@@ -275,7 +314,11 @@
       const distancePenalty = known(r.distanceKm)
         ? Math.min(MAX_DISTANCE_PENALTY, r.distanceKm * DISTANCE_PENALTY_PER_KM)
         : 0;
-      const score = clamp01(GROUP_BLEND.average * average + GROUP_BLEND.leastMisery * leastHappy - distancePenalty);
+      // Places swiped away this session pull down others with the same cuisine.
+      const passed = opts.passedCuisines || {};
+      const passCount = list(r.cuisine).reduce((n, c) => n + (passed[c] || 0), 0);
+      const passPenalty = Math.min(MAX_PASS_PENALTY, passCount * PASS_PENALTY);
+      const score = clamp01(GROUP_BLEND.average * average + GROUP_BLEND.leastMisery * leastHappy - distancePenalty - passPenalty);
 
       results.push({
         restaurant: r,
@@ -414,5 +457,6 @@
     groupHarmony,
     combineProfiles,
     groupContext,
+    topGenres,
   };
 });
