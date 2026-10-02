@@ -1,5 +1,5 @@
 /*
- * myfoodiegroup UI. Plain JS, no build step.
+ * FoodieMatch UI. Plain JS, no build step.
  *
  * Flow: Welcome → Your name → Your quiz → Your table (add people: quiz on
  *       this phone or paste their code) → Group (harmony + combined profile +
@@ -99,7 +99,7 @@
 
   function fromCode(code) {
     const trimmed = code.trim();
-    if (!trimmed.startsWith(CODE_PREFIX)) throw new Error('That doesn’t look like a myfoodiegroup code.');
+    if (!trimmed.startsWith(CODE_PREFIX)) throw new Error('That doesn’t look like a FoodieMatch code.');
     let data;
     try {
       data = JSON.parse(decodeURIComponent(escape(atob(trimmed.slice(CODE_PREFIX.length)))));
@@ -233,7 +233,7 @@
         <form id="code-form" class="stack" novalidate>
           ${badge}
           <h1><label for="auth-code">${f.mode === 'signup' ? 'Set up two-factor' : 'Enter your code'}</label></h1>
-          <p class="muted">${f.mode === 'signup' ? 'Add myfoodiegroup to your authenticator app, then enter the 6-digit code.' : 'Open your authenticator app and enter the 6-digit code.'}</p>
+          <p class="muted">${f.mode === 'signup' ? 'Add FoodieMatch to your authenticator app, then enter the 6-digit code.' : 'Open your authenticator app and enter the 6-digit code.'}</p>
           <p class="testcode">Test code: <strong>${f.code}</strong></p>
           <input type="text" id="auth-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" />
           <p id="auth-error" class="notice error" hidden></p>
@@ -907,7 +907,7 @@
   }
 
   async function lookupShortCode(code) {
-    if (!shared.db) throw new Error('Short codes work in the shared myfoodiegroup link. Ask your friend for their long code.');
+    if (!shared.db) throw new Error('Short codes work in the shared FoodieMatch link. Ask your friend for their long code.');
     let snap;
     try {
       snap = await shared.db.collection('codes').where('code', '==', code).limit(1).get();
@@ -1011,7 +1011,7 @@
       <h3 class="eyebrow">Nearby with the app open</h3>
       ${peers.length
         ? `<div class="card list">${peers.map(row).join('')}</div>`
-        : '<p class="small muted">No one else here yet. Share myfoodiegroup and they’ll show up.</p>'}`;
+        : '<p class="small muted">No one else here yet. Share FoodieMatch and they’ll show up.</p>'}`;
   }
 
   /** Example test users shown under Nearby in previews, so group picks can be tried alone. */

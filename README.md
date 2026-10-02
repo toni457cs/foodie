@@ -1,10 +1,10 @@
-# myfoodiegroup
+# FoodieMatch
 
 Many cravings. One table.
 
 > **Job to be done:** *When selecting a new restaurant, I want to know if there is an environment that aligns with mine and others' needs and interests, so that I can have an enjoyable experience with the group I'm dining with.*
 
-Everyone takes a 60-second taste quiz. myfoodiegroup then merges the profiles of the people eating together, checks how well they match, and ranks nearby restaurants for the whole table.
+Everyone takes a 60-second taste quiz. FoodieMatch then merges the profiles of the people eating together, checks how well they match, and ranks nearby restaurants for the whole table.
 
 ## Run it
 
