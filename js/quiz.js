@@ -35,7 +35,6 @@
   ];
 
   const DEALBREAKERS = [
-    { value: 'messy', label: 'Messy' },
     { value: 'no_parking', label: 'No parking' },
     { value: 'rude_service', label: 'Rude service' },
     { value: 'pricey', label: 'Too pricey' },

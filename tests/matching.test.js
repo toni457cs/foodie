@@ -54,12 +54,12 @@ test('one person’s dealbreaker vetoes a place for the whole group', () => {
 });
 
 test('unknown data never triggers a dealbreaker, but is flagged unverified', () => {
-  const ana = profile({ name: 'Ana', dealbreakers: ['no_parking', 'messy'] });
-  const { results } = Match.recommend([place({ name: 'Mystery', parking: null, cleanliness: null })], [ana], {
+  const ana = profile({ name: 'Ana', dealbreakers: ['no_parking', 'pricey'] });
+  const { results } = Match.recommend([place({ name: 'Mystery', parking: null, price: null })], [ana], {
     now: FRIDAY_7PM,
   });
   assert.equal(results.length, 1);
-  assert.deepEqual(results[0].unverified.sort(), ['cleanliness', 'parking']);
+  assert.deepEqual(results[0].unverified.sort(), ['parking', 'price']);
 });
 
 test('closed places are excluded (the field-test AI recommended a closed restaurant)', () => {
@@ -125,7 +125,7 @@ test('least-misery blend prefers a place everyone is OK with over one that split
     { now: FRIDAY_7PM },
   );
   assert.equal(results[0].restaurant.name, 'Taqueria');
-  assert.equal(results[0].highlights[0].text, 'Mexican craving');
+  assert.equal(results[0].highlights[0].text, 'Mexican');
   assert.deepEqual(results[0].highlights[0].who, ['Ana', 'Ben']);
 });
 
@@ -156,12 +156,12 @@ test('compatibility: similar diners match, a loud-vs-quiet clash is flagged', ()
 
 test('combineProfiles merges the table into one profile', () => {
   const combined = Match.combineProfiles([
-    profile({ name: 'Ana', cuisines: ['thai'], maxWait: 15, dealbreakers: ['messy'] }),
+    profile({ name: 'Ana', cuisines: ['thai'], maxWait: 15, dealbreakers: ['pricey'] }),
     profile({ name: 'Ben', cuisines: ['thai', 'indian'], maxWait: 60, dealbreakers: ['no_parking'] }),
   ]);
   assert.equal(combined.cuisines[0].value, 'thai');
   assert.equal(combined.maxWait, 15);
-  assert.deepEqual(combined.dealbreakers.map((d) => d.value).sort(), ['messy', 'no_parking']);
+  assert.deepEqual(combined.dealbreakers.map((d) => d.value).sort(), ['no_parking', 'pricey']);
 });
 
 test('real Folsom list: a views + seafood craving surfaces Crawdads; unknowns are never invented', () => {

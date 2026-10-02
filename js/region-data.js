@@ -161,7 +161,7 @@
     // Example test users listed under "Nearby with the app open" in previews.
     testUsers: [
       { peer: 'test-priya', town: 'Folsom', profile: { name: 'Priya (test)', cuisines: ['cafe', 'mediterranean'], novelty: 'new',
-        noise: 'buzz', dealbreakers: ['messy'], maxWait: 30, diningWith: 'friends', vibes: ['design', 'local'] } },
+        noise: 'buzz', dealbreakers: [], maxWait: 30, diningWith: 'friends', vibes: ['design', 'local'] } },
       { peer: 'test-marcus', town: 'Roseville', profile: { name: 'Marcus (test)', cuisines: ['any'], novelty: 'favorites',
         noise: 'buzz', dealbreakers: ['no_parking'], maxWait: 15, diningWith: 'friends', vibes: ['views', 'patio'] } },
       { peer: 'test-jules', town: 'Midtown Sacramento', profile: { name: 'Jules (test)', cuisines: ['mexican', 'steak'], novelty: 'new',
@@ -173,31 +173,31 @@
       // ---- Folsom: Historic District
       place('Sutter Street Steakhouse', ['steak', 'seafood'], 'Sutter St', 'sutter', 'restaurant', {
         vibes: ['cozy', 'patio'], goodFor: ['partner', 'coworkers', 'family', 'friends'],
-        blurb: 'Romantic steakhouse with an extensive wine list and patio seating.',
+        blurb: 'Romantic, big wine list, patio.',
       }),
       place('Hop Sing Palace', ['chinese'], 'Sutter St', 'sutter', 'restaurant', {
-        vibes: ['cozy', 'local'], blurb: 'Neighborhood staple since 1957 in a historic Sutter Street building.',
+        vibes: ['cozy', 'local'], blurb: 'Historic local staple since 1957.',
       }),
       place('Chicago Fire', ['italian', 'american'], 'Sutter St', 'sutter', 'restaurant', {
-        noise: 1.3, goodFor: ['family', 'friends', 'coworkers'], blurb: 'Deep-dish pizza, good for family night and groups.',
+        noise: 1.3, goodFor: ['family', 'friends', 'coworkers'], blurb: 'Deep-dish pizza for groups.',
       }),
       place("Scott's Seafood Roundhouse", ['seafood', 'american'], 'Historic District', 'sutter', 'restaurant'),
       place("Riley's on Sutter", ['american'], 'Sutter St', 'sutter', 'restaurant'),
       place('Hacienda Del Rio', ['mexican'], 'Sutter St', 'sutter', 'restaurant'),
       place('The Fat Rabbit Public House', ['pub', 'american'], 'Sutter St', 'sutter', 'pub', {
-        blurb: 'Comfortable pub, often named the best in Folsom.',
+        blurb: 'Comfortable local pub.',
       }),
       place("Samuel Horne's Tavern", ['pub', 'american'], 'Sutter St', 'sutter', 'pub', {
-        vibes: ['local'], blurb: 'Tavern focused on local beers.',
+        vibes: ['local'], blurb: 'Local beers.',
       }),
       place("Catherine's Crêperie", ['cafe', 'brunch'], '200 Wool St', 'sutter', 'cafe', {
-        blurb: 'Locally owned café with sweet and savory French crêpes.',
+        blurb: 'Sweet and savory crêpes.',
       }),
       place('Nara Sushi', ['japanese'], '1125 Riley St', 'riley', 'restaurant'),
       // ---- Folsom: lake, Blue Ravine, Palladio, Iron Point
       place('Crawdads on the Lake', ['american', 'seafood'], '9900 Greenback Ln', 'greenbackBridge', 'restaurant', {
         noise: 1.2, price: 2, vibes: ['views', 'patio'], hours: 'Mo-Th,Su 11:00-20:00; Fr,Sa 11:00-21:00',
-        blurb: 'Above the American River near Old Town, with sunset views over the water.',
+        blurb: 'Sunset views over the water.',
       }),
       place('Taj Grill Indian Cuisine', ['indian'], '9500 Greenback Ln, Ste 33', 'greenbackWest', 'restaurant'),
       place('Mexquite Mexican Cuisine', ['mexican'], '25095 Blue Ravine Rd', 'blueRavineEast', 'restaurant'),
@@ -207,10 +207,10 @@
       place('Curry Club Indian Bistro', ['indian'], '196 Blue Ravine Rd', 'blueRavineWest', 'restaurant'),
       place('Back Bistro', ['american'], 'Palladio', 'palladio', 'restaurant', {
         noise: 0.8, goodFor: ['partner', 'friends', 'coworkers'],
-        blurb: 'Seasonal menu with 30 wines by the glass, craft cocktails and microbrews.',
+        blurb: 'Seasonal menu, 30 wines by the glass.',
       }),
       place('Petra Greek', ['mediterranean'], '230 Palladio Pkwy, #1213', 'palladio', 'casual', {
-        blurb: 'Greek, at Palladio.',
+        blurb: '',
       }),
       place('Lazy Dog Restaurant & Bar', ['american'], '300 Palladio Pkwy', 'palladio', 'restaurant', {
         noise: 1.4, goodFor: ['family', 'friends', 'coworkers'],
@@ -236,7 +236,7 @@
 
       // ---- Sacramento: Downtown & Midtown
       place('Petra Greek', ['mediterranean'], '1122 16th St', 'downtown', 'casual', {
-        blurb: 'Greek, on 16th Street in Midtown.',
+        blurb: '',
       }),
       place('Tank House BBQ', ['steak', 'american'], '1925 J St', 'midtownJ', 'pub'),
       place('Tres Hermanas', ['mexican'], '2416 K St', 'midtownEast', 'restaurant'),
@@ -270,7 +270,7 @@
       place('Mezcalito Oaxacan Cuisine', ['mexican'], '5065 Pacific St', 'rocklinPacific', 'restaurant'),
       place("Rubino's Ristorante", ['italian'], '5015 Pacific St', 'rocklinPacific', 'restaurant'),
       place("The Chef's Table", ['american'], '6843 Lonetree Blvd, #103', 'rocklinLonetree', 'restaurant', {
-        blurb: 'Comfort food with a modern twist and a seasonal menu.',
+        blurb: 'Modern comfort food.',
       }),
       place('Biryani & Chaat', ['indian'], '4800 Granite Dr, B-11', 'rocklinGranite', 'casual'),
       place('Jing Jing Chinese Cuisine', ['chinese'], '4800 Granite Dr, B2', 'rocklinGranite', 'casual'),
@@ -281,11 +281,11 @@
 
       // ---- Elk Grove
       place('Boulevard Bistro', ['american'], '8941 Elk Grove Blvd', 'elkGroveOld', 'restaurant', {
-        goodFor: ['partner', 'friends', 'family'], blurb: 'California-inspired cooking in Old Town Elk Grove.',
+        goodFor: ['partner', 'friends', 'family'], blurb: 'California cooking in Old Town.',
       }),
       place('Mikuni Japanese Restaurant & Sushi Bar', ['japanese'], '8525 Bond Rd', 'elkGroveOld', 'restaurant'),
       place('Sheldon Inn', ['american', 'cafe'], '9000 Grant Line Rd', 'elkGroveEast', 'restaurant', {
-        blurb: 'French, American and Portuguese cooking.',
+        blurb: 'French, American, Portuguese.',
       }),
       place('Todo Un Poco', ['mexican', 'italian'], '9080 Laguna Main St, Ste 1A', 'elkGroveLaguna', 'restaurant'),
       place('Brick House Restaurant', ['italian', 'american'], '9027 Elk Grove Blvd, Ste 100', 'elkGroveOld', 'restaurant'),
@@ -299,7 +299,7 @@
       // ---- El Dorado Hills Town Center
       place('Milestone Restaurant & Cocktail Bar', ['american'], '4359 Town Center Blvd', 'edhTownCenter', 'restaurant'),
       place('South Fork Grille', ['american'], '4364 Town Center Blvd, Ste 124', 'edhTownCenter', 'restaurant', {
-        vibes: ['views'], blurb: 'Waterfront views at Town Center.',
+        vibes: ['views'], blurb: 'Waterfront views.',
       }),
       place("OBO' Italian Table & Bar", ['italian'], '4370 Town Center Blvd, Ste 120', 'edhTownCenter', 'restaurant'),
       place('Native + Nomad', ['american'], '4355 Town Center Blvd, #114', 'edhTownCenter', 'restaurant'),
@@ -312,20 +312,20 @@
       // ---- Davis
       place('Cafe Bernardo', ['brunch', 'cafe'], '234 D St', 'davisDowntown', 'cafe'),
       place('Dumpling House', ['chinese'], '129 E St', 'davisDowntown', 'casual'),
-      place('Yakitori Yuchan', ['japanese'], '109 E St', 'davisDowntown', 'restaurant', { blurb: 'Izakaya with yakitori grilled over binchotan.' }),
+      place('Yakitori Yuchan', ['japanese'], '109 E St', 'davisDowntown', 'restaurant', { blurb: 'Yakitori izakaya.' }),
       place("Sam's Mediterranean Cuisine", ['mediterranean'], '301 B St', 'davisDowntown', 'casual'),
       place('Bistro Thirty Three', ['cafe', 'american'], '226 F St', 'davisDowntown', 'restaurant', {
-        vibes: ['patio'], blurb: 'French bistro with a roomy downtown patio.',
+        vibes: ['patio'], blurb: 'French bistro, big patio.',
       }),
-      place('Manna Korean Restaurant', ['asian'], '622 3rd St', 'davisDowntown', 'casual', { blurb: 'Korean, known for stone pot bibimbap.' }),
+      place('Manna Korean Restaurant', ['asian'], '622 3rd St', 'davisDowntown', 'casual', { blurb: 'Stone pot bibimbap.' }),
 
       // ---- Rancho Cordova, Citrus Heights, Fair Oaks
       place('Formaggio Taverna & Patio', ['italian'], null, 'ranchoCordova', 'restaurant', {
-        vibes: ['patio', 'cozy'], hours: 'Tu-Sa 17:00-21:00', blurb: 'Light Italian food in a warm taverna setting.',
+        vibes: ['patio', 'cozy'], hours: 'Tu-Sa 17:00-21:00', blurb: 'Warm Italian taverna.',
       }),
       place('Black Angus Steakhouse', ['steak'], null, 'citrusHeights', 'restaurant', { goodFor: ['family', 'friends', 'coworkers', 'partner'] }),
-      place('Shangri-la', ['asian'], null, 'fairOaks', 'restaurant', { vibes: ['patio'], blurb: 'Known for its patio and cocktails.' }),
-      place("Fabian's Italian Bistro", ['italian'], null, 'fairOaks', 'restaurant', { blurb: 'Half-price house wines on Wednesdays.' }),
+      place('Shangri-la', ['asian'], null, 'fairOaks', 'restaurant', { vibes: ['patio'], blurb: 'Patio and cocktails.' }),
+      place("Fabian's Italian Bistro", ['italian'], null, 'fairOaks', 'restaurant', { blurb: 'Half-price wine Wednesdays.' }),
     ],
   };
 

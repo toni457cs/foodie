@@ -44,7 +44,9 @@
   function loadProfiles() {
     try {
       const raw = JSON.parse(localStorage.getItem(STORAGE_KEY));
-      return Array.isArray(raw) ? raw : [];
+      if (!Array.isArray(raw)) return [];
+      // Dealbreakers can be retired between versions; drop any we no longer offer.
+      return raw.map((p) => ({ ...p, dealbreakers: arr(p.dealbreakers).filter((d) => d in LABELS.dealbreaker) }));
     } catch {
       return [];
     }
@@ -88,7 +90,7 @@
       cuisines: arr(data.cuisines).slice(0, 2),
       novelty: pick(data.novelty, ['favorites', 'new']),
       noise: pick(data.noise, ['quiet', 'buzz', 'high']),
-      dealbreakers: arr(data.dealbreakers).slice(0, 2),
+      dealbreakers: arr(data.dealbreakers).filter((d) => d in LABELS.dealbreaker).slice(0, 2),
       maxWait: Number.isFinite(data.maxWait) ? data.maxWait : undefined,
       diningWith: pick(data.diningWith, ['solo', 'partner', 'friends', 'family', 'coworkers']),
       vibes: arr(data.vibes).slice(0, 2),
@@ -425,9 +427,7 @@
           </div>
           <div class="match"><strong>${pct(res.score)}%</strong><span class="small muted">match</span></div>
         </div>
-        <ul class="small">
-          ${res.highlights.slice(0, 4).map((h) => `<li class="plus">${esc(h.text)}${who(h)}</li>`).join('')}
-        </ul>
+        ${res.highlights.length ? `<p class="highlights">${res.highlights.slice(0, 3).map((h) => esc(h.text)).join(' · ')}</p>` : ''}
         ${group.length > 1 ? `<details><summary>How each person feels about it</summary>
           <div class="stack" style="margin-top:8px">${res.members
             .map(

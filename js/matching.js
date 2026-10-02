@@ -38,6 +38,10 @@
   const NOISE_LEVEL = { quiet: 0, buzz: 1, high: 2 };
   const NOISE_WORD = ['quiet', 'buzzing', 'high-energy'];
 
+  // Short highlight phrases for result cards.
+  const SHORT_VIBE = { views: 'Views', design: 'Beautiful design', patio: 'Patio', live_music: 'Live music', cozy: 'Cozy', local: 'Local character' };
+  const OCCASION_PHRASE = { partner: 'Date night', friends: 'Great with friends', family: 'Family-friendly', coworkers: 'Good for coworkers' };
+
   // Ideal popularity for each noise preference: quiet people still like *some* buzz.
   const POPULARITY_SWEET_SPOT = { quiet: 0.45, buzz: 0.65, high: 0.85 };
 
@@ -56,7 +60,6 @@
   const MAX_DISTANCE_PENALTY = 0.1;
 
   const DEALBREAKER_RULES = {
-    messy: { field: 'cleanliness', hit: (r) => r.cleanliness < 0.5, reason: 'tidier spots suit you better', unknown: 'cleanliness' },
     no_parking: { field: 'parking', hit: (r) => r.parking === false, reason: 'parking can be tricky', unknown: 'parking' },
     rude_service: { field: 'service', hit: (r) => r.service < 0.5, reason: 'service reviews are mixed', unknown: 'service' },
     pricey: { field: 'price', hit: (r) => r.price >= 4, reason: 'more of a splurge ($$$$)', unknown: 'price' },
@@ -97,7 +100,7 @@
     if (!wants.length || wants.includes('any')) return 0.6;
     const hit = list(r.cuisine).find((c) => wants.includes(c));
     if (hit) {
-      out.likes.push(`${L.cuisine[hit] || hit} craving`);
+      out.likes.push(L.cuisine[hit] || hit);
       return 1;
     }
     out.concerns.push('not what they’re craving');
@@ -109,7 +112,7 @@
     let noiseFit = 0.5;
     if (known(r.noise)) {
       noiseFit = 1 - Math.abs(r.noise - pref) / 2;
-      if (noiseFit >= 0.85) out.likes.push(`${L.noise[p.noise] || 'Noise level'} vibe`);
+      if (noiseFit >= 0.85) out.likes.push(L.noise[p.noise] || 'Right noise level');
       else if (noiseFit <= 0.5) out.concerns.push(r.noise > pref ? 'louder than they like' : 'quieter than they like');
     }
 
@@ -118,7 +121,7 @@
     if (wanted.length) {
       const matched = wanted.filter((v) => list(r.vibes).includes(v));
       vibeFit = 0.2 + (0.8 * matched.length) / wanted.length;
-      for (const v of matched) out.likes.push(L.vibe[v] || v);
+      for (const v of matched) out.likes.push(SHORT_VIBE[v] || v);
     }
 
     const cleanFit = known(r.cleanliness) ? r.cleanliness : 0.5;
@@ -134,7 +137,7 @@
       fit -= 0.3;
       out.concerns.push('busy and chaotic');
     } else if (fit >= 0.8 && r.popularity >= 0.6) {
-      out.likes.push('popular, with a good buzz');
+      out.likes.push('Popular');
     }
     return clamp01(fit);
   }
@@ -158,7 +161,7 @@
       return 1;
     }
     if (isFavorite) {
-      out.likes.push('one of their favorites');
+      out.likes.push('A favorite');
       return 1;
     }
     if (beenHere) return 0.75;
@@ -170,11 +173,11 @@
       // Research: alone, people want "something clean and quick", not an experience.
       const quick = r.quick ? 1 : 0.3;
       const clean = known(r.cleanliness) ? r.cleanliness : 0.5;
-      if (r.quick && clean >= 0.7) out.likes.push('quick & clean for a solo bite');
+      if (r.quick && clean >= 0.7) out.likes.push('Quick bite');
       return 0.6 * quick + 0.4 * clean;
     }
     if (list(r.goodFor).includes(occasion)) {
-      out.likes.push(`good with ${(L.company[occasion] || occasion).toLowerCase()}`);
+      out.likes.push(OCCASION_PHRASE[occasion] || 'Good fit');
       return 1;
     }
     return 0.4;

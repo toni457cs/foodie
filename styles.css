@@ -224,3 +224,4 @@ summary { cursor: pointer; color: var(--muted); font-size: 0.9rem; min-height: 3
 .diner .dot { flex: none; width: 8px; height: 8px; margin-top: 9px; border-radius: 50%; background: var(--good); }
 .diner .joined { align-self: center; }
 #nearby .eyebrow { margin: 4px 0 0; }
+.result .highlights { margin: 10px 0 4px; color: var(--accent); font-size: 0.95rem; }
