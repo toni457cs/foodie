@@ -121,18 +121,13 @@ textarea { font-family: ui-monospace, Menlo, monospace; font-size: 0.8rem; resiz
 .field label { font-weight: 500; font-size: 0.95rem; }
 
 /* Welcome */
-.hero { display: grid; gap: 14px; padding-top: 8px; }
-.hero h1 { font-size: 2.6rem; }
-.hero p { color: var(--muted); font-size: 1.05rem; }
+.hero { display: grid; gap: 20px; align-content: center; min-height: calc(100svh - 190px); text-align: center; }
+.hero h1 { font-size: 2.6rem; margin: 0; }
+#account-form { min-height: 60vh; align-content: start; }
+#account-form h1 label { font: inherit; }
 .setting {
   width: 100%; max-width: 240px; height: auto; justify-self: center; margin-bottom: 8px;
   fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; opacity: 0.85;
-}
-.steps { margin: 0; padding: 0; list-style: none; counter-reset: step; display: grid; gap: 16px; }
-.steps li { counter-increment: step; display: grid; grid-template-columns: 32px 1fr; gap: 14px; align-items: start; }
-.steps li::before {
-  content: counter(step); display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%;
-  border: 1px solid var(--line); color: var(--accent); font: 500 1rem var(--font-display);
 }
 
 /* Quiz */

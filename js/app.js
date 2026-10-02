@@ -156,63 +156,34 @@
           <path d="M176 104V20c11 6 14 26 14 40h-14" />
         </svg>
         <h1>Dinner, decided together.</h1>
-        <p>Tell us what you’re craving and the kind of place you love. Bring your people, and we’ll find a table everyone is happy at.</p>
       </section>
-      <section>
-        <h2 class="eyebrow">How it works</h2>
-        <ol class="steps">
-          <li><div><strong>Make your taste profile.</strong> Seven quick questions about cravings, noise, wait time and dealbreakers.</div></li>
-          <li><div><strong>Add who you’re eating with.</strong> They take the quiz on your phone, or send you their code.</div></li>
-          <li><div><strong>Get picks for the whole table.</strong> Ranked by fit, with the reasons for each person.</div></li>
-        </ol>
-      </section>
-      <div class="actionbar"><button class="primary block" data-action="to-account">Create my account</button></div>`;
+      <div class="actionbar"><button class="primary block" data-action="to-account">Get started</button></div>`;
   }
 
   function renderAccount() {
     const draft = state.accountDraft || {};
     $app.innerHTML = `
-      <section class="stack">
-        <h1>Create your account</h1>
-        <p class="muted">Just the basics. Your taste profile comes next.</p>
-        <form id="account-form" class="card stack" novalidate>
-          <div class="field">
-            <label for="acct-name">First name</label>
-            <input type="text" id="acct-name" maxlength="40" autocomplete="given-name" required value="${esc(draft.name || '')}" />
-          </div>
-          <div class="field">
-            <label for="acct-email">Email <span class="muted">(optional)</span></label>
-            <input type="email" id="acct-email" maxlength="120" autocomplete="email" value="${esc(draft.email || '')}" />
-          </div>
-          <div class="field">
-            <label for="acct-area">Where do you usually eat? <span class="muted">(optional)</span></label>
-            <input type="text" id="acct-area" maxlength="80" placeholder="e.g. Folsom, CA" value="${esc(draft.area || '')}" />
-          </div>
-          <p id="acct-error" class="notice error" hidden></p>
-          <button class="primary block" type="submit">Start my taste quiz →</button>
-          <p class="small muted">Your account is saved on this device.</p>
-        </form>
-        <button class="ghost" data-action="home">← Back</button>
-      </section>`;
+      <form id="account-form" class="stack" novalidate>
+        <h1><label for="acct-name">What’s your name?</label></h1>
+        <input type="text" id="acct-name" maxlength="40" autocomplete="given-name" placeholder="First name" value="${esc(draft.name || '')}" />
+        <p id="acct-error" class="notice error" hidden></p>
+        <div class="actionbar">
+          <button class="ghost" type="button" data-action="home">← Back</button>
+          <button class="primary" type="submit">Continue</button>
+        </div>
+      </form>`;
     document.getElementById('acct-name').focus();
     document.getElementById('account-form').addEventListener('submit', (e) => {
       e.preventDefault();
       const name = document.getElementById('acct-name').value.trim();
-      const email = document.getElementById('acct-email').value.trim();
-      const area = document.getElementById('acct-area').value.trim();
-      const error = document.getElementById('acct-error');
-      state.accountDraft = { name, email, area };
+      state.accountDraft = { name };
       if (!name) {
-        error.textContent = 'Add your first name so friends know who’s who.';
+        const error = document.getElementById('acct-error');
+        error.textContent = 'Add your first name to continue.';
         error.hidden = false;
         return;
       }
-      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        error.textContent = 'That email doesn’t look right. Fix it or leave it blank.';
-        error.hidden = false;
-        return;
-      }
-      startQuiz({ id: newId(), owner: true, name, email, area, cuisines: [], dealbreakers: [], vibes: [], favorites: [], visited: [] }, { skipName: true, isNew: true });
+      startQuiz({ id: newId(), owner: true, name, cuisines: [], dealbreakers: [], vibes: [], favorites: [], visited: [] }, { skipName: true, isNew: true });
     });
   }
 

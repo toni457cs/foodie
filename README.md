@@ -17,7 +17,7 @@ You can also double-click `index.html`. Location features work best over `http:/
 
 ## How it works
 
-1. **Welcome → create your account**: first name, plus optional email and usual area (the area pre-fills the city search). The account is saved on this device.
+1. **Welcome → your name**: no email or password for now. The account is saved on this device.
 2. **Your taste quiz** (`js/quiz.js`): one question per screen:
    1. What food genre are you craving today?
    2. Stick to favorites · Try something new
