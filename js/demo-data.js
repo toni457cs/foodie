@@ -13,9 +13,9 @@
     center: { lat: 38.6779, lon: -121.1761, label: 'Folsom, CA (demo data)' },
     // Example diners shown in demo-only previews so the app opens in a working state.
     sampleDiners: [
-      { id: 'ex-maria', name: 'Maria (example)', cuisines: ['cafe', 'mediterranean'], novelty: 'new', noise: 'buzz',
+      { id: 'ex-priya', name: 'Priya (example)', cuisines: ['cafe', 'mediterranean'], novelty: 'new', noise: 'buzz',
         dealbreakers: ['messy'], maxWait: 30, diningWith: 'family', vibes: ['design', 'local'], favorites: [], visited: [] },
-      { id: 'ex-dan', name: 'Dan (example)', cuisines: ['any'], novelty: 'favorites', noise: 'buzz',
+      { id: 'ex-marcus', name: 'Marcus (example)', cuisines: ['any'], novelty: 'favorites', noise: 'buzz',
         dealbreakers: ['no_parking'], maxWait: 15, diningWith: 'family', vibes: ['views', 'design'], favorites: [], visited: [] },
       { id: 'ex-jules', name: 'Jules (example)', cuisines: ['cafe', 'pub', 'steak'], novelty: 'new', noise: 'high',
         dealbreakers: [], maxWait: 30, diningWith: 'family', vibes: ['design', 'live_music'], favorites: [], visited: [] },

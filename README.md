@@ -17,7 +17,8 @@ You can also double-click `index.html`. Location features work best over `http:/
 
 ## How it works
 
-1. **Quiz** (`js/quiz.js`): one question per screen:
+1. **Welcome → create your account**: first name, plus optional email and usual area (the area pre-fills the city search). The account is saved on this device.
+2. **Your taste quiz** (`js/quiz.js`): one question per screen:
    1. What food genre are you craving today?
    2. Stick to favorites · Try something new
    3. Ideal noise level? Quiet · Light buzz · High energy
@@ -25,10 +26,10 @@ You can also double-click `index.html`. Location features work best over `http:/
    5. How long will you wait for a table?
    6. Who are you dining with today?
    7. *(optional bonus)* What makes a place feel special? Views, design & lighting, patio, live music…
-2. **Group matching**: pick who's eating. People on other phones share a profile code (`FOODIE1:…`) that you paste in. You don't need accounts or a server.
-3. **Location**: use your location, type a city, or try the Folsom demo data.
-4. **Results**: a ranked list with a group match %, *why* it fits (and for whom), concerns, how each person feels about it, and a "ruled out" list with reasons.
-5. **❤️ We loved it** saves the place to everyone's favorites, so "Stick to favorites" ranks it higher next time.
+3. **Who's joining you?** Your profile is always at the table. Add people by having them take the quiz on your phone, or by pasting their share code (`FOODIE1:…`) from their own phone. You can also tap "Just me".
+4. **Location**: use your location, type a city, or try the Folsom demo data.
+5. **Results**: a ranked list with a group match %, *why* it fits (and for whom), concerns, how each person feels about it, and a "ruled out" list with reasons.
+6. **❤️ We loved it** saves the place to everyone's favorites, so "Stick to favorites" ranks it higher next time.
 
 ## How the research shaped the algorithm (`js/matching.js`)
 

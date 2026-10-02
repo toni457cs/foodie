@@ -1,12 +1,13 @@
 /*
  * Foodie UI. Plain JS, no build step.
  *
- * Flow: Home (who's eating?) → Quiz (one question per screen) → Profile + share code
- *       → Group (harmony + combined profile + pick location) → Results
+ * Flow: Welcome → Create account → Your quiz → Your table (add people: quiz on
+ *       this phone or paste their code) → Group (harmony + combined profile +
+ *       location) → Results
  *
- * Profiles live in localStorage on this device. Friends on other phones share
- * a profile code ("FOODIE1:…") that you paste in. That's how profiles get
- * matched without needing accounts or a server.
+ * The account and profiles live in localStorage on this device. Friends on
+ * other phones share a profile code ("FOODIE1:…") that you paste in, so
+ * profiles can be matched without a server.
  */
 (function () {
   const { QUIZ, LABELS } = window.FoodieQuiz;
@@ -21,18 +22,20 @@
   const $app = document.getElementById('app');
 
   const state = {
-    view: 'home',
+    view: 'welcome',
     profiles: loadProfiles(),
     selected: new Set(),
     quiz: null, // { step, answers, editingId }
-    lastCreatedId: null,
     location: null, // { lat, lon, label, demo }
     status: null, // { kind: 'loading'|'error', text }
     outcome: null, // recommend() result
-    confirmRemove: null, // profile id awaiting a second tap
+    confirmRemove: null, // profile id (or 'reset') awaiting a second tap
+    accountDraft: null,
+    shareId: null,
+    justFinished: null,
   };
-  if (DEMO_ONLY && !state.profiles.length) state.profiles = structuredClone(DEMO.sampleDiners || []);
   state.profiles.forEach((p) => state.selected.add(p.id));
+  if (state.profiles.some((p) => p.owner)) state.view = 'table';
 
   // ---------------------------------------------------------------------------
   // Storage & share codes
@@ -104,17 +107,20 @@
   const pct = (x) => Math.round(x * 100);
   const scoreClass = (x) => (x >= 0.7 ? 'score-good' : x >= 0.5 ? 'score-ok' : 'score-bad');
   const names = (list) => (list.length <= 2 ? list.join(' & ') : `${list.slice(0, -1).join(', ')} & ${list.at(-1)}`);
-  const selectedProfiles = () => state.profiles.filter((p) => state.selected.has(p.id));
+  const owner = () => state.profiles.find((p) => p.owner);
+  const homeView = () => (owner() ? 'table' : 'welcome');
+  // You're always at your own table; friends are opt-in.
+  const selectedProfiles = () => state.profiles.filter((p) => p.owner || state.selected.has(p.id));
 
   function profileChips(p) {
     const chips = [];
     const cuisines = arr(p.cuisines);
-    if (cuisines.length) chips.push(cuisines.map((c) => LABELS.cuisine[c] || c).join(', '));
     if (p.noise) chips.push(LABELS.noise[p.noise]);
     if (p.novelty) chips.push(p.novelty === 'new' ? 'Something new' : 'Favorites');
-    if (p.diningWith) chips.push('w/ ' + LABELS.company[p.diningWith]);
+    if (p.maxWait != null) chips.push(LABELS.wait[p.maxWait] || `${p.maxWait} min wait`);
+    const crave = cuisines.map((c) => `<span class="chip saffron">${esc(LABELS.cuisine[c] || c)}</span>`);
     const deal = arr(p.dealbreakers).map((d) => `<span class="chip bad">✕ ${esc(LABELS.dealbreaker[d] || d)}</span>`);
-    return chips.map((c) => `<span class="chip">${esc(c)}</span>`).join('') + deal.join('');
+    return crave.join('') + chips.map((c) => `<span class="chip">${esc(c)}</span>`).join('') + deal.join('');
   }
 
   function go(view) {
@@ -127,56 +133,145 @@
   // Views
   // ---------------------------------------------------------------------------
 
-  function renderHome() {
-    const list = state.profiles
-      .map(
-        (p) => `
-      <div class="card diner">
+  function renderWelcome() {
+    $app.innerHTML = `
+      <section class="hero">
+        <div class="plate" aria-hidden="true"><span>🍝</span><span>🌮</span><span>🍣</span><span>🥐</span><span>🥩</span><span>🥗</span></div>
+        <h1>Dinner, decided together.</h1>
+        <p>Tell us what you’re craving and the kind of place you love. Then bring your people, and we’ll find a table everyone’s happy at.</p>
+        <button class="primary block" data-action="to-account">Create my account</button>
+      </section>
+      <section>
+        <h2 class="eyebrow">How it works</h2>
+        <ol class="steps">
+          <li><div><strong>Make your taste profile.</strong> Seven quick questions about cravings, noise, wait time and dealbreakers.</div></li>
+          <li><div><strong>Add who you’re eating with.</strong> They take the quiz on your phone, or send you their code.</div></li>
+          <li><div><strong>Get picks for the whole table.</strong> Ranked by fit, with the reasons for each person.</div></li>
+        </ol>
+      </section>`;
+  }
+
+  function renderAccount() {
+    const draft = state.accountDraft || {};
+    $app.innerHTML = `
+      <section class="stack">
+        <h1>Create your account</h1>
+        <p class="muted">Just the basics. Your taste profile comes next.</p>
+        <form id="account-form" class="card stack" novalidate>
+          <div class="field">
+            <label for="acct-name">First name</label>
+            <input type="text" id="acct-name" maxlength="40" autocomplete="given-name" required value="${esc(draft.name || '')}" />
+          </div>
+          <div class="field">
+            <label for="acct-email">Email <span class="muted">(optional)</span></label>
+            <input type="email" id="acct-email" maxlength="120" autocomplete="email" value="${esc(draft.email || '')}" />
+          </div>
+          <div class="field">
+            <label for="acct-area">Where do you usually eat? <span class="muted">(optional)</span></label>
+            <input type="text" id="acct-area" maxlength="80" placeholder="e.g. Folsom, CA" value="${esc(draft.area || '')}" />
+          </div>
+          <p id="acct-error" class="notice error" hidden></p>
+          <button class="primary block" type="submit">Start my taste quiz →</button>
+          <p class="small muted">Your account is saved on this device.</p>
+        </form>
+        <button class="ghost" data-action="home">← Back</button>
+      </section>`;
+    document.getElementById('acct-name').focus();
+    document.getElementById('account-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = document.getElementById('acct-name').value.trim();
+      const email = document.getElementById('acct-email').value.trim();
+      const area = document.getElementById('acct-area').value.trim();
+      const error = document.getElementById('acct-error');
+      state.accountDraft = { name, email, area };
+      if (!name) {
+        error.textContent = 'Add your first name so friends know who’s who.';
+        error.hidden = false;
+        return;
+      }
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        error.textContent = 'That email doesn’t look right. Fix it or leave it blank.';
+        error.hidden = false;
+        return;
+      }
+      startQuiz({ id: newId(), owner: true, name, email, area, cuisines: [], dealbreakers: [], vibes: [], favorites: [], visited: [] }, { skipName: true, isNew: true });
+    });
+  }
+
+  function dinerRow(p) {
+    return `
+      <div class="diner">
         <input type="checkbox" id="sel-${p.id}" data-action="toggle" data-id="${p.id}" ${state.selected.has(p.id) ? 'checked' : ''}
-          aria-label="${esc(p.name)} is eating today" />
+          aria-label="${esc(p.name)} is joining" />
         <div class="who">
           <label for="sel-${p.id}"><strong>${esc(p.name)}</strong></label>
           <div>${profileChips(p)}</div>
         </div>
         <div class="actions">
-          <button class="ghost small" data-action="retake" data-id="${p.id}" title="Update today's answers">Edit</button>
-          <button class="ghost small" data-action="share" data-id="${p.id}">Share</button>
+          <button class="ghost small" data-action="retake" data-id="${p.id}">Edit</button>
+          <button class="ghost small" data-action="share" data-id="${p.id}">Code</button>
           <button class="ghost small" data-action="remove" data-id="${p.id}" aria-label="Remove ${esc(p.name)}">${state.confirmRemove === p.id ? 'Tap to remove' : '✕'}</button>
         </div>
-      </div>`,
-      )
-      .join('');
+      </div>`;
+  }
 
-    const n = state.selected.size;
+  function renderTable() {
+    const me = owner();
+    if (!me) return go('welcome');
+    const friends = state.profiles.filter((p) => !p.owner);
+    const joining = friends.filter((p) => state.selected.has(p.id));
+    const fresh = state.justFinished === me.id;
+    state.justFinished = null;
+    const vibes = arr(me.vibes).map((v) => `<span class="chip basil">${esc(LABELS.vibe[v] || v)}</span>`).join('');
+
     $app.innerHTML = `
-      <section>
-        <h1>Who’s eating?</h1>
-        <p class="muted">Everyone takes a 60-second taste quiz. Then we combine your profiles and find places nearby that work for the whole table.</p>
-      </section>
       <section class="stack">
-        ${list || '<div class="card muted">No diners yet. Start with your own quiz.</div>'}
-        <div class="row">
-          <button class="primary" data-action="start-quiz">+ Take the quiz</button>
-          <button data-action="show-import">Add a friend’s code</button>
+        <p class="eyebrow">${fresh ? 'Your taste profile is ready' : 'Welcome back'}</p>
+        <h1>${fresh ? `Nice to meet you, ${esc(me.name)}.` : `Hungry, ${esc(me.name)}?`}</h1>
+        <div class="card me">
+          <div class="spread">
+            <h2>Today I’m feeling…</h2>
+            <button class="ghost small" data-action="retake" data-id="${me.id}">Update</button>
+          </div>
+          <div>${profileChips(me)}</div>
+          ${vibes ? `<div><span class="small muted">I love </span>${vibes}</div>` : ''}
+        </div>
+      </section>
+
+      <section class="stack">
+        <div>
+          <h2>Who’s joining you?</h2>
+          <p class="muted small">Add the people you’re eating with. We’ll find places that work for everyone.</p>
+        </div>
+        ${friends.length ? `<div class="card list">${friends.map(dinerRow).join('')}</div>` : ''}
+        <div class="add-grid">
+          <button data-action="add-here">🙋 Add someone here<span class="hint">They take the quiz on this phone</span></button>
+          <button data-action="show-import">🔗 Paste a friend’s code<span class="hint">From their own phone</span></button>
+          ${DEMO_ONLY && !friends.some((p) => p.example) ? `<button data-action="add-examples">🍽️ Add example friends<span class="hint">To try out group picks</span></button>` : ''}
         </div>
         <div id="import" class="card stack" hidden>
           <label for="import-code"><strong>Paste a friend’s Foodie code</strong></label>
           <textarea id="import-code" rows="3" placeholder="FOODIE1:…"></textarea>
-          <div class="row"><button class="primary" data-action="import">Add to table</button></div>
+          <div class="row"><button class="primary" data-action="import">Add to the table</button></div>
         </div>
       </section>
-      <section>
-        <button class="primary block" data-action="to-group" ${n ? '' : 'disabled'}>
-          ${n ? `Find a spot for ${n === 1 ? '1 diner' : `${n} diners`} →` : 'Select who’s eating'}
+
+      <section class="stack">
+        <button class="primary block big" data-action="to-group">
+          ${joining.length ? `Find a table for ${joining.length + 1} →` : 'Just me. Show my picks →'}
         </button>
+        <div class="row">
+          <button class="ghost small" data-action="share" data-id="${me.id}">Share my code</button>
+          <button class="ghost small" data-action="reset">${state.confirmRemove === 'reset' ? 'Tap again to delete my account' : 'Delete my account'}</button>
+        </div>
       </section>`;
   }
 
   function renderQuiz() {
-    const { step, answers } = state.quiz;
-    const q = QUIZ[step];
+    const { step, answers, steps } = state.quiz;
+    const q = steps[step];
     const value = answers[q.id];
-    const progress = `<div class="progress" aria-hidden="true"><span style="width:${pct((step + 1) / QUIZ.length)}%"></span></div>`;
+    const progress = `<div class="progress" aria-hidden="true"><span style="width:${pct((step + 1) / steps.length)}%"></span></div>`;
     let body;
     if (q.type === 'text') {
       body = `<input type="text" id="q-text" maxlength="40" placeholder="${esc(q.placeholder)}" value="${esc(value || '')}" autocomplete="given-name" />`;
@@ -195,10 +290,10 @@
     }
     const answered = q.type === 'multi' ? arr(value).length > 0 : q.type === 'text' ? !!(value || '').trim() : value !== undefined;
     const showNext = q.type !== 'single';
-    const last = step === QUIZ.length - 1;
+    const last = step === steps.length - 1;
     $app.innerHTML = `
       ${progress}
-      <p class="muted small">Question ${step + 1} of ${QUIZ.length}</p>
+      <p class="eyebrow">${state.quiz.owner ? 'Your taste profile' : answers.name ? `${esc(answers.name)}’s taste profile` : 'New diner'} · ${step + 1} of ${steps.length}</p>
       <h1>${esc(q.prompt)}</h1>
       ${q.hint ? `<p class="muted">${esc(q.hint)}</p>` : ''}
       ${body}
@@ -220,31 +315,24 @@
     }
   }
 
-  function renderProfileDone() {
-    const p = state.profiles.find((x) => x.id === state.lastCreatedId);
-    if (!p) return go('home');
+  function renderShare() {
+    const p = state.profiles.find((x) => x.id === state.shareId);
+    if (!p) return go('table');
     $app.innerHTML = `
       <section class="stack">
-        <h1>${p.updatedAt && Date.now() - Date.parse(p.updatedAt) < 5000 ? `Nice to meet you, ${esc(p.name)}! 🎉` : `${esc(p.name)}’s taste profile`}</h1>
-        <div class="card">${profileChips(p)}
-          ${arr(p.vibes).length ? `<p class="small muted" style="margin-top:8px">Loves: ${esc(p.vibes.map((v) => LABELS.vibe[v]).join(', '))}</p>` : ''}
-        </div>
+        <h1>${p.owner ? 'Your Foodie code' : `${esc(p.name)}’s Foodie code`}</h1>
+        <p class="muted">Send this to someone eating with you. They paste it under “Paste a friend’s code” and you’re both on their table.</p>
         <div class="card stack">
-          <strong>Eating with people on other phones?</strong>
-          <p class="small muted">Send them this code, or have them send you theirs and paste it on the home screen.</p>
-          <textarea readonly rows="3" id="share-code">${esc(toCode(p))}</textarea>
-          <div class="row"><button data-action="copy-code" data-id="${p.id}">Copy my code</button></div>
+          <textarea readonly rows="4" id="share-code">${esc(toCode(p))}</textarea>
+          <div class="row"><button class="primary" data-action="copy-code" data-id="${p.id}">Copy code</button></div>
         </div>
-      </section>
-      <section class="row">
-        <button data-action="start-quiz">+ Add another diner</button>
-        <button class="primary" data-action="to-group">Find our spot →</button>
+        <button class="ghost" data-action="home">← Back to my table</button>
       </section>`;
   }
 
   function renderGroup() {
     const group = selectedProfiles();
-    if (!group.length) return go('home');
+    if (!group.length) return go(homeView());
     const combined = Match.combineProfiles(group);
     const harmony = Match.groupHarmony(group);
     const tally = (items, labels) =>
@@ -293,14 +381,14 @@
         <button class="primary block" data-action="use-demo">Show picks around Folsom, CA</button>` : `<div class="loc-grid">
           <button class="primary block" data-action="use-location">📍 Use my location</button>
           <div class="row" style="flex-wrap:nowrap">
-            <input type="text" id="town" placeholder="Or type a city, e.g. Folsom, CA" />
+            <input type="text" id="town" placeholder="Or type a city, e.g. Folsom, CA" value="${esc(owner()?.area || '')}" />
             <button data-action="search-town">Search</button>
           </div>
           <button class="block" data-action="use-demo">Try the demo (Folsom, CA sample data)</button>
         </div>`}
         ${status}
       </section>
-      <section><button class="ghost" data-action="home">← Change who’s eating</button></section>`;
+      <section><button class="ghost" data-action="home">← Change who’s joining</button></section>`;
     const town = document.getElementById('town');
     town?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') searchTown();
@@ -377,26 +465,37 @@
         </details></section>` : ''}
       <section class="row">
         <button data-action="to-group">← Change location</button>
-        <button class="ghost" data-action="home">Edit diners</button>
+        <button class="ghost" data-action="home">Change who’s joining</button>
       </section>`;
   }
 
   function render() {
-    ({ home: renderHome, quiz: renderQuiz, done: renderProfileDone, group: renderGroup, results: renderResults })[state.view]();
+    const views = {
+      welcome: renderWelcome,
+      account: renderAccount,
+      quiz: renderQuiz,
+      table: renderTable,
+      share: renderShare,
+      group: renderGroup,
+      results: renderResults,
+    };
+    views[state.view]();
   }
 
   // ---------------------------------------------------------------------------
   // Quiz logic
   // ---------------------------------------------------------------------------
 
-  function startQuiz(existing) {
+  function startQuiz(existing, { skipName = false, isNew = false } = {}) {
     const answers = existing ? structuredClone(existing) : { cuisines: [], dealbreakers: [], vibes: [] };
-    state.quiz = { step: 0, answers, editingId: existing?.id || null };
+    const isOwner = !!answers.owner;
+    const steps = skipName || isOwner ? QUIZ.filter((q) => q.id !== 'name') : QUIZ;
+    state.quiz = { step: 0, steps, answers, owner: isOwner, isNew, editingId: isNew ? null : existing?.id || null };
     go('quiz');
   }
 
   function answer(rawValue) {
-    const q = QUIZ[state.quiz.step];
+    const q = state.quiz.steps[state.quiz.step];
     const opt = q.options.find((o) => String(o.value) === rawValue);
     if (!opt) return;
     const a = state.quiz.answers;
@@ -423,7 +522,7 @@
 
   function quizNext() {
     if (state.view !== 'quiz') return;
-    if (state.quiz.step < QUIZ.length - 1) {
+    if (state.quiz.step < state.quiz.steps.length - 1) {
       state.quiz.step++;
       render();
     } else {
@@ -432,7 +531,7 @@
   }
 
   function quizBack() {
-    if (state.quiz.step === 0) return go('home');
+    if (state.quiz.step === 0) return go(state.quiz.owner && state.quiz.isNew ? 'account' : homeView());
     state.quiz.step--;
     render();
   }
@@ -444,7 +543,7 @@
       visited: [],
       ...a,
       name: a.name.trim(),
-      id: state.quiz.editingId || newId(),
+      id: state.quiz.editingId || a.id || newId(),
       updatedAt: new Date().toISOString(),
     };
     const i = state.profiles.findIndex((p) => p.id === profile.id);
@@ -452,9 +551,13 @@
     else state.profiles.push(profile);
     state.selected.add(profile.id);
     saveProfiles();
+    const wasNewOwner = state.quiz.owner && state.quiz.isNew;
+    const wasNewFriend = !state.quiz.owner && !state.quiz.editingId;
     state.quiz = null;
-    state.lastCreatedId = profile.id;
-    go('done');
+    state.accountDraft = null;
+    if (wasNewOwner) state.justFinished = profile.id;
+    if (wasNewFriend) toast(`${profile.name} is joining you`);
+    go('table');
   }
 
   // ---------------------------------------------------------------------------
@@ -522,14 +625,35 @@
   const actions = {
     home: () => {
       state.status = null;
-      go('home');
+      go(homeView());
+    },
+    'to-account': () => go('account'),
+    'add-here': () => startQuiz(null),
+    'add-examples': () => {
+      for (const ex of DEMO.sampleDiners || []) {
+        const p = { ...structuredClone(ex), id: newId(), example: true };
+        state.profiles.push(p);
+        state.selected.add(p.id);
+      }
+      saveProfiles();
+      render();
+    },
+    reset: () => {
+      if (state.confirmRemove !== 'reset') {
+        state.confirmRemove = 'reset';
+        return render();
+      }
+      state.confirmRemove = null;
+      state.profiles = [];
+      state.selected.clear();
+      saveProfiles();
+      go('welcome');
     },
     toggle: (el) => {
       if (el.checked) state.selected.add(el.dataset.id);
       else state.selected.delete(el.dataset.id);
       render();
     },
-    'start-quiz': () => startQuiz(null),
     retake: (el) => startQuiz(state.profiles.find((p) => p.id === el.dataset.id)),
     remove: (el) => {
       const p = state.profiles.find((x) => x.id === el.dataset.id);
@@ -545,8 +669,8 @@
       render();
     },
     share: (el) => {
-      state.lastCreatedId = el.dataset.id;
-      go('done');
+      state.shareId = el.dataset.id;
+      go('share');
     },
     'copy-code': (el) => copyCode(el.dataset.id),
     'show-import': () => {
@@ -560,7 +684,7 @@
         state.profiles.push(p);
         state.selected.add(p.id);
         saveProfiles();
-        toast(`${p.name} joined the table`);
+        toast(`${p.name} is joining you`);
         render();
       } catch (err) {
         toast(err.message);
@@ -609,7 +733,7 @@
   document.addEventListener('click', (e) => {
     const el = e.target.closest('[data-action]');
     if (!el || el.tagName === 'INPUT') return;
-    if (el.dataset.action !== 'remove' && state.confirmRemove) state.confirmRemove = null;
+    if (!['remove', 'reset'].includes(el.dataset.action) && state.confirmRemove) state.confirmRemove = null;
     const fn = actions[el.dataset.action];
     if (fn) fn(el);
   });
