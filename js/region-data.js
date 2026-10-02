@@ -158,6 +158,17 @@
     center: { lat: 38.6, lon: -121.35, label: 'Greater Sacramento' },
     radiusKm: 80, // origins farther than this from the center are outside the saved list
     zips: ZIPS,
+    // Example test users listed under "Nearby with the app open" in previews.
+    testUsers: [
+      { peer: 'test-priya', town: 'Folsom', profile: { name: 'Priya (test)', cuisines: ['cafe', 'mediterranean'], novelty: 'new',
+        noise: 'buzz', dealbreakers: ['messy'], maxWait: 30, diningWith: 'friends', vibes: ['design', 'local'] } },
+      { peer: 'test-marcus', town: 'Roseville', profile: { name: 'Marcus (test)', cuisines: ['any'], novelty: 'favorites',
+        noise: 'buzz', dealbreakers: ['no_parking'], maxWait: 15, diningWith: 'friends', vibes: ['views', 'patio'] } },
+      { peer: 'test-jules', town: 'Midtown Sacramento', profile: { name: 'Jules (test)', cuisines: ['mexican', 'steak'], novelty: 'new',
+        noise: 'high', dealbreakers: [], maxWait: 30, diningWith: 'friends', vibes: ['live_music'] } },
+      { peer: 'test-sam', town: 'Elk Grove', profile: { name: 'Sam (test)', cuisines: ['japanese', 'thai'], novelty: 'favorites',
+        noise: 'quiet', dealbreakers: ['loud', 'pricey'], maxWait: 15, diningWith: 'friends', vibes: ['cozy'] } },
+    ],
     restaurants: [
       // ---- Folsom: Historic District
       place('Sutter Street Steakhouse', ['steak', 'seafood'], 'Sutter St', 'sutter', 'restaurant', {

@@ -1,11 +1,11 @@
 /*
  * Foodie UI. Plain JS, no build step.
  *
- * Flow: Welcome → Create account → Your quiz → Your table (add people: quiz on
+ * Flow: Welcome → Your name → Your quiz → Your table (add people: quiz on
  *       this phone or paste their code) → Group (harmony + combined profile +
  *       location) → Results
  *
- * The account and profiles live in localStorage on this device. Friends on
+ * Your session and profiles live in localStorage on this device. Friends on
  * other phones share a profile code ("FOODIE1:…") that you paste in, so
  * profiles can be matched without a server.
  */
@@ -256,7 +256,7 @@
 
       <section class="row">
         <button class="ghost small" data-action="share" data-id="${me.id}">Share my code</button>
-        <button class="ghost small" data-action="reset">${state.confirmRemove === 'reset' ? 'Tap again to delete my account' : 'Delete my account'}</button>
+        <button class="ghost small" data-action="reset">${state.confirmRemove === 'reset' ? 'Tap again to delete session' : 'Delete session'}</button>
       </section>
       <div class="actionbar">
         <button class="primary block" data-action="to-group">
@@ -724,13 +724,15 @@
   function renderNearby() {
     const el = document.getElementById('nearby');
     if (!el) return;
-    if (!live.room || !owner()) {
+    const examples = exampleNearby();
+    if ((!live.room && !examples.length) || !owner()) {
       el.hidden = true;
       return;
     }
     el.hidden = false;
     const myTown = state.myTown;
-    const peers = [...live.peers].sort((a, b) => (b.town === myTown) - (a.town === myTown) || a.profile.name.localeCompare(b.profile.name));
+    const byTown = (a, b) => (b.town === myTown) - (a.town === myTown) || a.profile.name.localeCompare(b.profile.name);
+    const peers = [...[...live.peers].sort(byTown), ...examples];
     const row = (p) => {
       const added = state.profiles.some((f) => f.peer === p.peer);
       return `
@@ -752,6 +754,12 @@
         : '<p class="small muted">No one else here yet. Share Foodie and they’ll show up.</p>'}`;
   }
 
+  /** Example test users shown under Nearby in previews, so group picks can be tried alone. */
+  function exampleNearby() {
+    if (!DEMO_ONLY) return [];
+    return (REGION.testUsers || []).map((t) => ({ peer: t.peer, town: t.town, example: true, profile: normalizeShared(t.profile) }));
+  }
+
   // ---------------------------------------------------------------------------
   // Events
   // ---------------------------------------------------------------------------
@@ -764,7 +772,7 @@
     'to-account': () => go('account'),
     'add-here': () => startQuiz(null),
     'add-nearby': (el) => {
-      const p = live.peers.find((x) => x.peer === el.dataset.peer);
+      const p = [...live.peers, ...exampleNearby()].find((x) => x.peer === el.dataset.peer);
       if (!p || state.profiles.some((f) => f.peer === p.peer)) return;
       const friend = { ...p.profile, id: newId(), peer: p.peer };
       state.profiles.push(friend);
