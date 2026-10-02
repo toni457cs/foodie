@@ -1,6 +1,6 @@
 # myfoodiegroup
 
-Your table, your tastes.
+Many cravings. One table.
 
 > **Job to be done:** *When selecting a new restaurant, I want to know if there is an environment that aligns with mine and others' needs and interests, so that I can have an enjoyable experience with the group I'm dining with.*
 

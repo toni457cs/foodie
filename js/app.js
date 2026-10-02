@@ -215,7 +215,7 @@
           <circle cx="110" cy="62" r="46" /><circle cx="110" cy="62" r="31" />
           <path d="M176 104V20c11 6 14 26 14 40h-14" />
         </svg>
-        <h1>Your table, your tastes.</h1>
+        <h1>Many cravings. One table.</h1>
       </section>
       <div class="actionbar stacked">
         <button class="primary block" data-action="auth-start" data-mode="signup">Log in or create account</button>
