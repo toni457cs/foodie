@@ -17,7 +17,7 @@ You can also double-click `index.html`. Location features work best over `http:/
 
 ## How it works
 
-1. **Welcome → your name**: no email or password. It's a session saved on this device; "Delete session" clears it.
+1. **Welcome → Log in / Create account, or Continue as guest**: guests can do everything except save favorites; tapping Save as favorite as a guest asks you to log in. **The login, account and two-factor screens are a clickable prototype for user testing.** Nothing is sent anywhere, passwords are never stored, and the 2FA step shows a test code on screen. Real accounts need an auth service, such as Supabase with authenticator-app 2FA. "Delete session" clears everything on this device.
 2. **Your taste quiz** (`js/quiz.js`): one question per screen:
    1. What food genre are you craving today? (up to 2)
    2. Stick to favorites · Try something new
@@ -27,8 +27,8 @@ You can also double-click `index.html`. Location features work best over `http:/
    6. Who are you dining with today?
    7. *(optional, up to 2)* What makes a place feel special? Views, design & lighting, patio, live music…
 3. **Who's joining you?** Your profile is always at the table. Add people by having them take the quiz on your phone, or by pasting their share code (`FOODIE1:…`) from their own phone. You can also tap "Just me". Where the page runs as a shared Claude artifact, **Nearby with the app open** lists everyone who has it open right now. Each person shares their first name, taste answers and the town from their last ZIP search, never coordinates. Tap Add to bring them to your table. Previews also list four test users (Priya, Marcus, Jules and Sam, each marked "(test)") so group picks can be tried alone.
-4. **Location**: use your location, or enter a ZIP code (or a city, in the full app).
-5. **Results**: a ranked list with a group match %, *why* it fits (and for whom), concerns, how each person feels about it, and a "ruled out" list with reasons.
+4. **Location**: enter a ZIP code (or a city, in the full app).
+5. **Results**: swipe a card left or right (or press Delete) to hide it for this session, with Undo and "Show hidden". A ranked list with a group match %, *why* it fits (and for whom), concerns, how each person feels about it, and a "ruled out" list with reasons.
 6. **❤️ We loved it** saves the place to everyone's favorites, so "Stick to favorites" ranks it higher next time.
 
 ## How the research shaped the algorithm (`js/matching.js`)

@@ -18,6 +18,8 @@
   const DEMO_ONLY = !!window.FOODIE_DEMO_ONLY;
 
   const STORAGE_KEY = 'foodie.profiles.v1';
+  const AUTH_KEY = 'foodie.auth.v1'; // prototype sign-in state: email + 2FA flag, never a password
+  const HIDDEN_KEY = 'foodie.hidden'; // places swiped away this session
   const CODE_PREFIX = 'FOODIE1:';
   const $app = document.getElementById('app');
 
@@ -33,9 +35,15 @@
     accountDraft: null,
     shareId: null,
     justFinished: null,
+    auth: loadJSON('localStorage', AUTH_KEY), // null = not chosen yet; {guest: true} or {email, twoFactor}
+    hidden: new Set(loadJSON('sessionStorage', HIDDEN_KEY) || []),
+    authFlow: null, // { mode: 'login'|'signup', step: 'form'|'code', email, code, twoFactor, next }
   };
   state.profiles.forEach((p) => state.selected.add(p.id));
-  if (state.profiles.some((p) => p.owner)) state.view = 'table';
+  if (state.profiles.some((p) => p.owner)) {
+    state.view = 'table';
+    if (!state.auth) state.auth = { guest: true };
+  }
 
   // ---------------------------------------------------------------------------
   // Storage & share codes
@@ -51,6 +59,26 @@
       return [];
     }
   }
+
+  // `store` is 'localStorage' or 'sessionStorage'; touching either can throw in locked-down browsers.
+  function loadJSON(store, key) {
+    try {
+      return JSON.parse(window[store].getItem(key));
+    } catch {
+      return null;
+    }
+  }
+
+  function saveJSON(store, key, value) {
+    try {
+      if (value == null) window[store].removeItem(key);
+      else window[store].setItem(key, JSON.stringify(value));
+    } catch {
+      /* storage blocked: keep going for this visit */
+    }
+  }
+
+  const signedIn = () => !!state.auth?.email;
 
   function saveProfiles() {
     try {
@@ -110,12 +138,13 @@
     return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   }
 
-  function toast(text) {
+  function toast(text, action) {
     const el = document.getElementById('toast');
-    el.textContent = text;
+    el.innerHTML = `<span>${esc(text)}</span>${action ? `<button class="toast-btn" data-action="toast-action">${esc(action.label)}</button>` : ''}`;
+    toast.action = action?.run || null;
     el.hidden = false;
     clearTimeout(toast.t);
-    toast.t = setTimeout(() => (el.hidden = true), 2400);
+    toast.t = setTimeout(() => (el.hidden = true), action ? 5000 : 2400);
   }
 
   const pct = (x) => Math.round(x * 100);
@@ -171,7 +200,102 @@
         </svg>
         <h1>Dinner, decided together.</h1>
       </section>
-      <div class="actionbar"><button class="primary block" data-action="to-account">Get started</button></div>`;
+      <div class="actionbar stacked">
+        <button class="primary block" data-action="auth-start" data-mode="signup">Log in or create account</button>
+        <button class="ghost block" data-action="continue-guest">Continue as guest</button>
+      </div>`;
+  }
+
+  // Login / create account / two-factor: a clickable PROTOTYPE for user testing.
+  // Nothing is sent anywhere and passwords are never stored or read back.
+  function renderAuth() {
+    const f = state.authFlow;
+    const badge = '<p class="proto">Prototype · nothing is saved or sent</p>';
+    if (f.step === 'code') {
+      $app.innerHTML = `
+        <form id="code-form" class="stack" novalidate>
+          ${badge}
+          <h1><label for="auth-code">${f.mode === 'signup' ? 'Set up two-factor' : 'Enter your code'}</label></h1>
+          <p class="muted">${f.mode === 'signup' ? 'Add Foodie to your authenticator app, then enter the 6-digit code.' : 'Open your authenticator app and enter the 6-digit code.'}</p>
+          <p class="testcode">Test code: <strong>${f.code}</strong></p>
+          <input type="text" id="auth-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" />
+          <p id="auth-error" class="notice error" hidden></p>
+          <div class="actionbar">
+            <button class="ghost" type="button" data-action="auth-back">← Back</button>
+            <button class="primary" type="submit">Verify</button>
+          </div>
+        </form>`;
+      document.getElementById('auth-code').focus();
+      document.getElementById('code-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const typed = document.getElementById('auth-code').value.trim();
+        if (typed !== f.code) {
+          const err = document.getElementById('auth-error');
+          err.textContent = 'That code doesn’t match. Try the test code above.';
+          err.hidden = false;
+          return;
+        }
+        finishAuth();
+      });
+      return;
+    }
+    const signup = f.mode === 'signup';
+    $app.innerHTML = `
+      <form id="auth-form" class="stack" novalidate>
+        ${badge}
+        <div class="tabs" role="tablist">
+          <button type="button" role="tab" aria-selected="${!signup}" data-action="auth-mode" data-mode="login">Log in</button>
+          <button type="button" role="tab" aria-selected="${signup}" data-action="auth-mode" data-mode="signup">Create account</button>
+        </div>
+        <h1>${signup ? 'Create your account' : 'Welcome back'}</h1>
+        <div class="field"><label for="auth-email">Email</label>
+          <input type="email" id="auth-email" autocomplete="username" value="${esc(f.email || '')}" /></div>
+        <div class="field"><label for="auth-pass">Password</label>
+          <input type="password" id="auth-pass" autocomplete="${signup ? 'new-password' : 'current-password'}" placeholder="Use a test password" /></div>
+        ${signup ? `<label class="check"><input type="checkbox" id="auth-2fa" ${f.twoFactor !== false ? 'checked' : ''} /> Turn on two-factor authentication</label>` : ''}
+        <p id="auth-error" class="notice error" hidden></p>
+        <div class="actionbar">
+          <button class="ghost" type="button" data-action="auth-cancel">← Back</button>
+          <button class="primary" type="submit">${signup ? 'Create account' : 'Log in'}</button>
+        </div>
+      </form>`;
+    document.getElementById('auth-email').focus();
+    document.getElementById('auth-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const email = document.getElementById('auth-email').value.trim();
+      const pass = document.getElementById('auth-pass');
+      const err = document.getElementById('auth-error');
+      const fail = (msg) => {
+        err.textContent = msg;
+        err.hidden = false;
+      };
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail('Add an email address to continue.');
+      if (pass.value.length < 8) return fail('Use at least 8 characters.');
+      pass.value = ''; // the prototype never keeps a password
+      f.email = email;
+      f.twoFactor = signup ? document.getElementById('auth-2fa').checked : state.auth?.twoFactor ?? true;
+      if (f.twoFactor) {
+        f.code = String(Math.floor(100000 + Math.random() * 900000));
+        f.step = 'code';
+        return render();
+      }
+      finishAuth();
+    });
+  }
+
+  function startAuth(mode, next) {
+    state.authFlow = { mode, step: 'form', email: '', twoFactor: true, next };
+    go('auth');
+  }
+
+  function finishAuth() {
+    const f = state.authFlow;
+    state.auth = { email: f.email, twoFactor: f.twoFactor, prototype: true };
+    saveJSON('localStorage', AUTH_KEY, state.auth);
+    state.authFlow = null;
+    toast(f.twoFactor ? 'Signed in with two-factor on' : 'Signed in');
+    if (f.next) return f.next();
+    go(owner() ? 'table' : 'account');
   }
 
   function renderAccount() {
@@ -257,6 +381,10 @@
       </section>
 
       <section class="row">
+        ${signedIn()
+          ? `<span class="small muted">${esc(state.auth.email)}${state.auth.twoFactor ? ' · 2FA on' : ''}</span>
+             <button class="ghost small" data-action="log-out">Log out</button>`
+          : `<button class="ghost small" data-action="auth-start" data-mode="login">Log in to save favorites</button>`}
         <button class="ghost small" data-action="share" data-id="${me.id}">Share my code</button>
         <button class="ghost small" data-action="reset">${state.confirmRemove === 'reset' ? 'Tap again to delete session' : 'Delete session'}</button>
       </section>
@@ -381,11 +509,10 @@
       <section class="card stack">
         <h2>Where are you eating?</h2>
         <div class="loc-grid">
-          <button class="primary block" data-action="use-location">Use my location</button>
           <div class="row" style="flex-wrap:nowrap">
             <input type="text" id="town" inputmode="${DEMO_ONLY ? 'numeric' : 'text'}" autocomplete="postal-code"
               placeholder="${DEMO_ONLY ? 'ZIP code, e.g. 95630' : 'ZIP code or city'}" value="${esc(state.lastQuery || '')}" />
-            <button data-action="search-town">Go</button>
+            <button class="primary" data-action="search-town">Go</button>
           </div>
         </div>
         ${status}
@@ -400,9 +527,10 @@
   function renderResults() {
     const group = selectedProfiles();
     const { results, excluded } = state.outcome;
-    const top = results.slice(0, 10);
+    const visible = results.filter((r) => !state.hidden.has(r.restaurant.id));
+    const top = visible.slice(0, 10);
     const loc = state.location;
-    const estimatedNote = '<p class="small muted">Good to call ahead for wait times.</p>';
+    const estimatedNote = '';
 
     const card = (res, i) => {
       const r = res.restaurant;
@@ -417,7 +545,8 @@
       const who = (h) =>
         group.length < 2 ? '' : ` <span class="muted">(${h.who.length === group.length ? 'everyone' : esc(names(h.who))})</span>`;
       return `
-      <article class="card result">
+      <article class="card result swipe" tabindex="0" data-rid="${esc(r.id)}" aria-label="${esc(r.name)}. Swipe or press Delete to hide.">
+        ${r.photo?.verified && r.photo.url ? `<figure class="photo"><img src="${esc(r.photo.url)}" alt="${esc(r.name)}" loading="lazy" /><figcaption>${esc(r.photo.credit || '')}</figcaption></figure>` : ''}
         <div class="spread">
           <div>
             <span class="rank">#${i + 1}</span> <h3 style="display:inline">${esc(r.name)}</h3>
@@ -439,7 +568,7 @@
         <div class="row" style="margin-top:10px">
           <a class="btn small" href="${mapsUrl}" target="_blank" rel="noopener">Directions</a>
           ${r.website ? `<a class="btn small" href="${esc(r.website)}" target="_blank" rel="noopener">Website</a>` : ''}
-          <button class="small" data-action="loved" data-rid="${esc(r.id)}">Save as favorite</button>
+          <button class="small" data-action="loved" data-rid="${esc(r.id)}">${signedIn() && arr(owner()?.favorites).includes(r.id) ? 'Saved' : 'Save as favorite'}</button>
         </div>
       </article>`;
     };
@@ -447,8 +576,9 @@
     $app.innerHTML = `
       <section>
         <h1>${group.length === 1 ? 'Your top picks' : group.length > 3 ? `Top picks for your table of ${group.length}` : `Top picks for ${esc(names(group.map((p) => p.name)))}`}</h1>
-        <p class="muted">Near ${esc(loc.label)} · ${results.length} places to enjoy</p>
+        <p class="muted">Near ${esc(loc.label)} · ${visible.length} places to enjoy</p>
         ${estimatedNote}
+        <p class="small muted">Swipe a card away to hide it for this session.${state.hidden.size ? ` <button class="linkish" data-action="unhide">Show ${state.hidden.size} hidden</button>` : ''}</p>
       </section>
       <section>
         ${top.length ? top.map(card).join('') : '<div class="card">Your table has very particular tastes tonight. Try another ZIP code nearby, or loosen one preference.</div>'}
@@ -470,6 +600,7 @@
     const views = {
       welcome: renderWelcome,
       account: renderAccount,
+      auth: renderAuth,
       quiz: renderQuiz,
       table: renderTable,
       share: renderShare,
@@ -609,30 +740,6 @@
     }
   }
 
-  function useMyLocation() {
-    const fallback = () => {
-      state.status = { kind: 'error', text: 'We couldn’t find your location here. A ZIP code works just as well.' };
-      render();
-      document.getElementById('town')?.focus();
-    };
-    if (!navigator.geolocation) return fallback();
-    state.status = { kind: 'loading', text: 'Finding you…' };
-    render();
-    // Some browsers never answer when the permission prompt is blocked, so don't wait forever.
-    let settled = false;
-    const once = (fn) => (...args) => {
-      if (settled) return;
-      settled = true;
-      fn(...args);
-    };
-    setTimeout(once(fallback), 8000);
-    navigator.geolocation.getCurrentPosition(
-      once((pos) => findAt({ lat: pos.coords.latitude, lon: pos.coords.longitude, label: 'you' })),
-      once(fallback),
-      { enableHighAccuracy: false, timeout: 6000, maximumAge: 300000 },
-    );
-  }
-
   async function searchTown() {
     const text = document.getElementById('town')?.value.trim();
     if (!text) return;
@@ -770,6 +877,39 @@
       go(homeView());
     },
     'to-account': () => go('account'),
+    'continue-guest': () => {
+      state.auth = { guest: true };
+      saveJSON('localStorage', AUTH_KEY, state.auth);
+      go('account');
+    },
+    'auth-start': (el) => startAuth(el.dataset.mode, owner() ? () => go(state.returnView || 'table') : null),
+    'auth-mode': (el) => {
+      state.authFlow.mode = el.dataset.mode;
+      render();
+    },
+    'auth-back': () => {
+      state.authFlow.step = 'form';
+      render();
+    },
+    'auth-cancel': () => {
+      state.authFlow = null;
+      go(owner() ? 'table' : 'welcome');
+    },
+    'log-out': () => {
+      state.auth = { guest: true };
+      saveJSON('localStorage', AUTH_KEY, state.auth);
+      toast('Logged out');
+      render();
+    },
+    'toast-action': () => {
+      document.getElementById('toast').hidden = true;
+      toast.action?.();
+    },
+    unhide: () => {
+      state.hidden.clear();
+      saveJSON('sessionStorage', HIDDEN_KEY, null);
+      render();
+    },
     'add-here': () => startQuiz(null),
     'add-nearby': (el) => {
       const p = [...live.peers, ...exampleNearby()].find((x) => x.peer === el.dataset.peer);
@@ -789,6 +929,10 @@
       state.confirmRemove = null;
       state.profiles = [];
       state.selected.clear();
+      state.auth = null;
+      state.hidden.clear();
+      saveJSON('localStorage', AUTH_KEY, null);
+      saveJSON('sessionStorage', HIDDEN_KEY, null);
       saveProfiles();
       syncPresence();
       go('welcome');
@@ -841,10 +985,19 @@
       state.status = null;
       go('group');
     },
-    'use-location': useMyLocation,
     'search-town': searchTown,
     loved: (el) => {
       const rid = el.dataset.rid;
+      if (!signedIn()) {
+        toast('Log in or create an account to save favorites.', {
+          label: 'Log in',
+          run: () => {
+            state.returnView = 'results';
+            startAuth('login', () => go('results'));
+          },
+        });
+        return;
+      }
       for (const p of selectedProfiles()) {
         p.favorites = [...new Set([...arr(p.favorites), rid])];
         p.visited = [...new Set([...arr(p.visited), rid])];
@@ -872,6 +1025,61 @@
       }
     }
   }
+
+  // Swipe a result card left or right to hide it for this session.
+  function hidePlace(card, direction) {
+    const rid = card.dataset.rid;
+    const name = card.getAttribute('aria-label').split('.')[0];
+    card.style.transition = 'transform 0.22s ease, opacity 0.22s ease';
+    card.style.transform = `translateX(${direction * 110}%)`;
+    card.style.opacity = '0';
+    setTimeout(() => {
+      state.hidden.add(rid);
+      saveJSON('sessionStorage', HIDDEN_KEY, [...state.hidden]);
+      render();
+      toast(`${name} hidden`, {
+        label: 'Undo',
+        run: () => {
+          state.hidden.delete(rid);
+          saveJSON('sessionStorage', HIDDEN_KEY, [...state.hidden]);
+          render();
+        },
+      });
+    }, 200);
+  }
+
+  let drag = null;
+  document.addEventListener('pointerdown', (e) => {
+    const card = e.target.closest('.swipe');
+    if (!card || e.target.closest('button, a, summary, input')) return;
+    drag = { card, x: e.clientX, y: e.clientY, dx: 0, active: false };
+  });
+  document.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    drag.dx = e.clientX - drag.x;
+    const dy = e.clientY - drag.y;
+    if (!drag.active && Math.abs(drag.dx) > 12 && Math.abs(drag.dx) > Math.abs(dy)) drag.active = true;
+    if (!drag.active) return;
+    drag.card.style.transition = 'none';
+    drag.card.style.transform = `translateX(${drag.dx}px) rotate(${drag.dx / 40}deg)`;
+    drag.card.style.opacity = String(Math.max(0.3, 1 - Math.abs(drag.dx) / 300));
+  });
+  const endDrag = () => {
+    if (!drag) return;
+    const { card, dx, active } = drag;
+    drag = null;
+    if (!active) return;
+    if (Math.abs(dx) > Math.min(120, card.offsetWidth * 0.3)) return hidePlace(card, Math.sign(dx));
+    card.style.transition = 'transform 0.2s ease, opacity 0.2s ease';
+    card.style.transform = '';
+    card.style.opacity = '';
+  };
+  document.addEventListener('pointerup', endDrag);
+  document.addEventListener('pointercancel', endDrag);
+  document.addEventListener('keydown', (e) => {
+    const card = e.target.closest?.('.swipe');
+    if (card && e.target === card && (e.key === 'Delete' || e.key === 'Backspace')) hidePlace(card, 1);
+  });
 
   document.addEventListener('click', (e) => {
     const el = e.target.closest('[data-action]');
