@@ -164,15 +164,18 @@ test('combineProfiles merges the table into one profile', () => {
   assert.deepEqual(combined.dealbreakers.map((d) => d.value).sort(), ['messy', 'no_parking']);
 });
 
-test('demo data: the field-test group ends up at the crêperie, not the chaotic brewery', () => {
-  const group = [
-    profile({ name: 'Mom', cuisines: ['cafe', 'mediterranean'], noise: 'buzz', dealbreakers: ['messy'], vibes: ['design', 'local'], diningWith: 'family' }),
-    profile({ name: 'Dad', cuisines: ['any'], noise: 'buzz', dealbreakers: ['no_parking'], vibes: ['views', 'design'], diningWith: 'family' }),
-    profile({ name: 'Student', cuisines: ['cafe', 'pub', 'steak'], noise: 'high', vibes: ['design'], diningWith: 'family' }),
-  ];
-  const { results, excluded } = Match.recommend(DEMO.restaurants, group, { now: FRIDAY_7PM });
-  assert.equal(results[0].restaurant.id, 'demo-crepes');
-  assert.ok(excluded.some((e) => e.restaurant.id === 'demo-brewery'));
+test('real Folsom list: a views + seafood craving surfaces Crawdads; unknowns are never invented', () => {
+  const diner = profile({ name: 'Dad', cuisines: ['seafood'], vibes: ['views'], dealbreakers: ['no_parking'] });
+  const { results } = Match.recommend(DEMO.restaurants, [diner], { now: FRIDAY_7PM });
+  assert.equal(results[0].restaurant.name, 'Crawdads on the Lake');
+  assert.ok(results[0].unverified.includes('parking'));
+  for (const r of DEMO.restaurants) {
+    assert.equal(r.cleanliness, null, r.name);
+    assert.equal(r.popularity, null, r.name);
+  }
+  // Listed hours: closed at 10pm on a Friday.
+  const late = Match.recommend(DEMO.restaurants, [diner], { now: new Date(2026, 9, 2, 22, 0) });
+  assert.ok(late.excluded.some((e) => e.restaurant.name === 'Crawdads on the Lake'));
 });
 
 test('opening hours parser', () => {

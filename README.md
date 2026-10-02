@@ -19,13 +19,13 @@ You can also double-click `index.html`. Location features work best over `http:/
 
 1. **Welcome → your name**: no email or password for now. The account is saved on this device.
 2. **Your taste quiz** (`js/quiz.js`): one question per screen:
-   1. What food genre are you craving today?
+   1. What food genre are you craving today? (up to 2)
    2. Stick to favorites · Try something new
    3. Ideal noise level? Quiet · Light buzz · High energy
-   4. Instant dealbreaker? Messy · No parking · Rude service · Too pricey · Too loud
+   4. Instant dealbreaker? (up to 2) Messy · No parking · Rude service · Too pricey · Too loud
    5. How long will you wait for a table?
    6. Who are you dining with today?
-   7. *(optional bonus)* What makes a place feel special? Views, design & lighting, patio, live music…
+   7. *(optional, up to 2)* What makes a place feel special? Views, design & lighting, patio, live music…
 3. **Who's joining you?** Your profile is always at the table. Add people by having them take the quiz on your phone, or by pasting their share code (`FOODIE1:…`) from their own phone. You can also tap "Just me".
 4. **Location**: use your location, type a city, or try the Folsom demo data.
 5. **Results**: a ranked list with a group match %, *why* it fits (and for whom), concerns, how each person feels about it, and a "ruled out" list with reasons.
@@ -51,7 +51,7 @@ Weights are constants at the top of `js/matching.js` (`WEIGHTS`, `GROUP_BLEND`, 
 ## Data sources (`js/places.js`)
 
 - **Live:** OpenStreetMap via the Overpass API (free, no key). OSM gives cuisine, venue type, hours, outdoor seating and live music, but **not** cleanliness, service, wait or parking. Those fields stay `null`. They never trigger a dealbreaker and appear as "unverified" on the card. Noise is estimated from the venue type (pub > restaurant > café).
-- **Demo:** `js/demo-data.js` has 17 **fictional** Folsom-area restaurants modeled on the interviews (lakeside views, a French crêperie with flowers and local art, a hip but chaotic brewery, a breakfast-only diner in the old train depot). Every field is filled in, so the demo shows the full scoring.
+- **Saved Folsom list:** `js/demo-data.js` has 31 real Folsom restaurants compiled from public listings (Tripadvisor, Yelp, OpenTable, Yellow Pages) in October 2026: name, cuisine, street address, and listed features such as a patio or lake view. Coordinates are approximate, placed by street or shopping center. Ratings, waits, parking and price are left unknown, and hours are filled in only where a listing gave them. Previews that can't reach the map service use this list.
 - **To go further:** fill the same fields from a source with reviews (Google Places, Yelp Fusion, Foursquare). `cleanliness`, `service` and `popularity` map naturally to review sentiment and counts.
 
 ## Files

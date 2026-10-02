@@ -70,9 +70,9 @@
   const QUIZ = [
     { id: 'name', type: 'text', prompt: 'First, what should we call you?', placeholder: 'Your first name' },
     {
-      id: 'cuisines', type: 'multi', options: CUISINES, exclusive: 'any',
+      id: 'cuisines', type: 'multi', options: CUISINES, exclusive: 'any', max: 2,
       prompt: 'What food genre are you craving today?',
-      hint: 'Pick as many as sound good.',
+      hint: 'Pick up to 2.',
     },
     {
       id: 'novelty', type: 'single',
@@ -84,16 +84,16 @@
     },
     { id: 'noise', type: 'single', prompt: 'Ideal noise level?', options: NOISE },
     {
-      id: 'dealbreakers', type: 'multi', options: DEALBREAKERS, optional: true,
+      id: 'dealbreakers', type: 'multi', options: DEALBREAKERS, optional: true, max: 2,
       prompt: 'Instant dealbreaker?',
-      hint: 'Anything you pick knocks a place off the list for the whole group. Skip if nothing.',
+      hint: 'Pick up to 2, or skip.',
     },
     { id: 'maxWait', type: 'single', prompt: 'How long will you wait for a table?', options: WAITS },
     { id: 'diningWith', type: 'single', prompt: 'Who are you dining with today?', options: COMPANY },
     {
-      id: 'vibes', type: 'multi', options: VIBES, optional: true,
-      prompt: 'Bonus: what makes a place feel special to you?',
-      hint: 'Optional, but this is what makes a meal memorable for most people.',
+      id: 'vibes', type: 'multi', options: VIBES, optional: true, max: 2,
+      prompt: 'What makes a place feel special?',
+      hint: 'Pick up to 2, or skip.',
     },
   ];
 

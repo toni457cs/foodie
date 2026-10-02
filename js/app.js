@@ -264,10 +264,12 @@
       body = `<input type="text" id="q-text" maxlength="40" placeholder="${esc(q.placeholder)}" value="${esc(value || '')}" autocomplete="given-name" />`;
     } else {
       const isOn = (v) => (q.type === 'multi' ? arr(value).includes(v) : value === v);
+      const full = q.type === 'multi' && q.max && arr(value).filter((v) => v !== q.exclusive).length >= q.max;
+      const locked = (v) => full && !isOn(v) && v !== q.exclusive;
       body = `<div class="options" role="group" aria-label="${esc(q.prompt)}">
         ${q.options
           .map(
-            (o) => `<button class="option" data-action="answer" data-value="${esc(o.value)}" aria-pressed="${isOn(o.value)}">
+            (o) => `<button class="option" data-action="answer" data-value="${esc(o.value)}" aria-pressed="${isOn(o.value)}" ${locked(o.value) ? 'disabled' : ''}>
               <span class="tick ${q.type === 'multi' ? 'square' : ''}" aria-hidden="true"></span>
               <span>${esc(o.label)}${o.hint ? `<span class="hint">${esc(o.hint)}</span>` : ''}</span>
             </button>`,
@@ -364,14 +366,13 @@
       </section>
       <section class="card stack">
         <h2>Where are you?</h2>
-        ${DEMO_ONLY ? `<p class="small muted">This preview uses sample restaurants around Folsom, CA. Live search near you works when you run the app yourself.</p>
-        <button class="primary block" data-action="use-demo">Show picks around Folsom, CA</button>` : `<div class="loc-grid">
+        ${DEMO_ONLY ? `<button class="primary block" data-action="use-demo">Folsom, CA</button>` : `<div class="loc-grid">
           <button class="primary block" data-action="use-location">Use my location</button>
           <div class="row" style="flex-wrap:nowrap">
             <input type="text" id="town" placeholder="Or type a city, e.g. Folsom, CA" value="${esc(owner()?.area || '')}" />
             <button data-action="search-town">Search</button>
           </div>
-          <button class="block" data-action="use-demo">Try the demo (Folsom, CA sample data)</button>
+          <button class="block" data-action="use-demo">Folsom, CA (saved list)</button>
         </div>`}
         ${status}
       </section>
@@ -387,10 +388,7 @@
     const { results, excluded } = state.outcome;
     const top = results.slice(0, 10);
     const loc = state.location;
-    const estimatedNote = loc.demo
-      ? ''
-      : `<div class="notice small">Live data from OpenStreetMap. It knows cuisine, venue type and hours, but not cleanliness, service, wait or parking.
-         Those show as “unverified” and never trigger a dealbreaker. Worth a quick look before you go.</div>`;
+    const estimatedNote = '<p class="small muted">Ratings, waits and parking aren’t verified yet.</p>';
 
     const card = (res, i) => {
       const r = res.restaurant;
@@ -398,7 +396,7 @@
       const meta = [
         r.cuisine.map((c) => LABELS.cuisine[c] || c).join(', '),
         price,
-        r.distanceKm != null ? `${(r.distanceKm * 0.621).toFixed(1)} mi` : '',
+        r.distanceKm != null ? `${loc.demo ? '~' : ''}${(r.distanceKm * 0.621).toFixed(1)} mi` : '',
         r.waitMinutes != null ? `~${r.waitMinutes} min wait` : '',
       ].filter(Boolean);
       const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${r.name} ${r.lat},${r.lon}`)}`;
@@ -410,6 +408,7 @@
           <div>
             <span class="rank">#${i + 1}</span> <h3 style="display:inline">${esc(r.name)}</h3>
             <div class="small muted">${esc(meta.join(' · '))}</div>
+            ${r.address ? `<div class="small muted">${esc(r.address)}</div>` : ''}
             ${r.blurb ? `<div class="small">${esc(r.blurb)}</div>` : ''}
           </div>
           <div class="match"><strong>${pct(res.score)}%</strong><span class="small muted">match</span></div>
@@ -418,7 +417,7 @@
           ${res.highlights.slice(0, 4).map((h) => `<li class="plus">${esc(h.text)}${who(h)}</li>`).join('')}
           ${res.concerns.slice(0, 2).map((h) => `<li class="minus">${esc(h.text)}${who(h)}</li>`).join('')}
         </ul>
-        ${res.unverified.length ? `<div>${res.unverified.map((u) => `<span class="chip">? ${esc(u)} unverified</span>`).join('')}</div>` : ''}
+        ${res.unverified.length && !loc.demo ? `<div>${res.unverified.map((u) => `<span class="chip">? ${esc(u)} unverified</span>`).join('')}</div>` : ''}
         ${group.length > 1 ? `<details><summary>How each person feels about it</summary>
           <div class="stack" style="margin-top:8px">${res.members
             .map(
@@ -503,7 +502,11 @@
     let cur = arr(a[q.id]);
     if (cur.includes(opt.value)) cur = cur.filter((v) => v !== opt.value);
     else if (q.exclusive && opt.value === q.exclusive) cur = [opt.value];
-    else cur = cur.filter((v) => v !== q.exclusive).concat(opt.value);
+    else {
+      cur = cur.filter((v) => v !== q.exclusive);
+      if (q.max && cur.length >= q.max) return; // at the limit: unpick one first
+      cur = cur.concat(opt.value);
+    }
     a[q.id] = cur;
     render();
   }

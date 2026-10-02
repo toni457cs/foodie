@@ -1,145 +1,153 @@
 /*
- * Demo dataset: fictional restaurants around Folsom, CA, modeled on what came
- * up in the interviews and field test (a lakeside place with views, a French
- * crêperie with flowers and local art, a hip-but-chaotic brewery, a quick &
- * clean spot, a diner in the old train depot near the amphitheater).
+ * Real Folsom, CA restaurants, compiled from public web listings (Tripadvisor,
+ * Yelp, OpenTable, Yellow Pages, restaurant sites) in October 2026.
  *
- * Unlike live OpenStreetMap results, every field is filled in, so the demo
- * shows the full scoring. Names and ratings are made up; this is not real
- * data about real businesses.
+ * Used where the app can't reach the live map service (e.g. a sandboxed
+ * preview). Only facts the listings state are filled in: name, cuisine,
+ * street address, and a few listed features (patio, lake view, historic
+ * building). Coordinates are approximate, placed by street or shopping center,
+ * so distances are rough.
+ *
+ * Noise is estimated from venue type, as for live OpenStreetMap data.
+ * Cleanliness, service, wait, popularity, parking and price are unknown
+ * (null). They never trigger a dealbreaker and show as "unverified".
+ * Hours are included only where a listing gave them.
  */
 (function (root) {
+  // Approximate centers for each part of town.
+  const AREA = {
+    sutter: [38.6776, -121.1762], // Historic District / Sutter St
+    riley: [38.6748, -121.1725],
+    greenbackBridge: [38.6893, -121.1818],
+    greenbackWest: [38.6826, -121.2045],
+    blueRavineEast: [38.6829, -121.1555],
+    blueRavineWest: [38.6838, -121.1702],
+    palladio: [38.6497, -121.1215],
+    eastBidwell: [38.6552, -121.1183],
+    ironPoint: [38.6445, -121.1447],
+    prairieCity: [38.6551, -121.1566],
+  };
+
+  const VENUE = {
+    restaurant: { noise: 1.0, goodFor: ['partner', 'friends', 'family', 'coworkers'], quick: false },
+    casual: { noise: 1.2, goodFor: ['solo', 'friends', 'family', 'coworkers'], quick: true },
+    cafe: { noise: 0.6, goodFor: ['solo', 'partner', 'friends'], quick: true },
+    pub: { noise: 1.7, goodFor: ['friends', 'coworkers'], quick: false },
+  };
+
+  let n = 0;
+  function place(name, cuisine, address, area, venue, extra = {}) {
+    const [lat, lon] = AREA[area];
+    const v = VENUE[venue];
+    // Small offset so places in the same center don't stack exactly.
+    const jitter = ((n++ % 5) - 2) * 0.0006;
+    return {
+      id: 'folsom-' + name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+      name,
+      cuisine,
+      address: `${address}, Folsom, CA`,
+      noise: v.noise,
+      price: null,
+      parking: null,
+      cleanliness: null,
+      service: null,
+      waitMinutes: null,
+      popularity: null,
+      vibes: [],
+      goodFor: v.goodFor,
+      quick: v.quick,
+      hours: null,
+      lat: lat + jitter,
+      lon: lon - jitter,
+      source: 'Web listings, Oct 2026',
+      estimated: true,
+      ...extra,
+    };
+  }
+
   const DEMO = {
-    center: { lat: 38.6779, lon: -121.1761, label: 'Folsom, CA (demo data)' },
-    // Example diners shown in demo-only previews so the app opens in a working state.
+    center: { lat: 38.6779, lon: -121.1761, label: 'Folsom, CA' },
+    // Example diners offered in previews so group picks can be tried without friends.
     sampleDiners: [
       { id: 'ex-priya', name: 'Priya (example)', cuisines: ['cafe', 'mediterranean'], novelty: 'new', noise: 'buzz',
         dealbreakers: ['messy'], maxWait: 30, diningWith: 'family', vibes: ['design', 'local'], favorites: [], visited: [] },
       { id: 'ex-marcus', name: 'Marcus (example)', cuisines: ['any'], novelty: 'favorites', noise: 'buzz',
         dealbreakers: ['no_parking'], maxWait: 15, diningWith: 'family', vibes: ['views', 'design'], favorites: [], visited: [] },
-      { id: 'ex-jules', name: 'Jules (example)', cuisines: ['cafe', 'pub', 'steak'], novelty: 'new', noise: 'high',
+      { id: 'ex-jules', name: 'Jules (example)', cuisines: ['cafe', 'steak'], novelty: 'new', noise: 'high',
         dealbreakers: [], maxWait: 30, diningWith: 'family', vibes: ['design', 'live_music'], favorites: [], visited: [] },
     ],
     restaurants: [
-      {
-        id: 'demo-lakeview', name: 'Lakeview Crawfish House', cuisine: ['seafood'],
-        noise: 1.2, price: 3, parking: true, cleanliness: 0.85, service: 0.8, waitMinutes: 35, popularity: 0.85,
-        vibes: ['views', 'patio', 'design'], goodFor: ['family', 'partner', 'friends', 'coworkers'], quick: false,
-        hours: 'Mo-Th 11:00-21:00; Fr,Sa 11:00-22:00; Su 10:00-21:00', lat: 38.7052, lon: -121.1585,
-        blurb: 'Sunset deck right on the lake.',
-      },
-      {
-        id: 'demo-crepes', name: 'Petite Maison Crêperie', cuisine: ['cafe', 'brunch'],
-        noise: 0.6, price: 2, parking: true, cleanliness: 0.95, service: 0.9, waitMinutes: 10, popularity: 0.7,
-        vibes: ['design', 'cozy', 'local'], goodFor: ['partner', 'friends', 'family', 'solo'], quick: false,
-        hours: 'Mo-Su 08:00-21:00', lat: 38.6771, lon: -121.1752,
-        blurb: 'French furniture, fresh flowers, local wine & art on the walls.',
-      },
-      {
-        id: 'demo-brewery', name: 'Railyard Brewing Co.', cuisine: ['pub', 'american'],
-        noise: 1.9, price: 2, parking: false, cleanliness: 0.45, service: 0.7, waitMinutes: 20, popularity: 0.95,
-        vibes: ['design', 'live_music', 'patio'], goodFor: ['friends', 'coworkers'], quick: false,
-        hours: 'Mo-Su 11:00-23:00', lat: 38.6786, lon: -121.1771,
-        blurb: 'Hip brick building with great lettering, often packed and rowdy.',
-      },
-      {
-        id: 'demo-ember', name: 'Ember & Oak Steakhouse', cuisine: ['steak'],
-        noise: 1.1, price: 4, parking: true, cleanliness: 0.9, service: 0.9, waitMinutes: 30, popularity: 0.8,
-        vibes: ['design', 'cozy'], goodFor: ['partner', 'coworkers', 'family'], quick: false,
-        hours: 'Mo-Su 16:00-22:00', lat: 38.6655, lon: -121.1452,
-        blurb: 'You can smell the wood-fired grill from the parking lot.',
-      },
-      {
-        id: 'demo-amapola', name: 'Casa Amapola', cuisine: ['mexican'],
-        noise: 1.4, price: 2, parking: true, cleanliness: 0.75, service: 0.8, waitMinutes: 15, popularity: 0.7,
-        vibes: ['patio', 'local'], goodFor: ['family', 'friends', 'coworkers'], quick: false,
-        hours: 'Mo-Su 10:30-21:30', lat: 38.6702, lon: -121.1601,
-        blurb: 'Family-run, colorful patio, big shareable plates.',
-      },
-      {
-        id: 'demo-trattoria', name: 'Sutter Street Trattoria', cuisine: ['italian'],
-        noise: 0.9, price: 3, parking: false, cleanliness: 0.9, service: 0.85, waitMinutes: 25, popularity: 0.75,
-        vibes: ['design', 'cozy', 'patio'], goodFor: ['partner', 'family', 'friends'], quick: false,
-        hours: 'Tu-Su 11:30-21:30; Mo off', lat: 38.6776, lon: -121.1768,
-        blurb: 'Candlelit historic storefront. Street parking only.',
-      },
-      {
-        id: 'demo-greenbowl', name: 'Green Bowl Kitchen', cuisine: ['vegetarian', 'mediterranean'],
-        noise: 0.7, price: 2, parking: true, cleanliness: 0.95, service: 0.8, waitMinutes: 5, popularity: 0.5,
-        vibes: ['design'], goodFor: ['solo', 'coworkers', 'friends'], quick: true,
-        hours: 'Mo-Sa 10:00-20:00; Su off', lat: 38.6612, lon: -121.1555,
-        blurb: 'Bright, spotless, in and out in 15 minutes.',
-      },
-      {
-        id: 'demo-sakura', name: 'Sakura Hana Sushi', cuisine: ['japanese'],
-        noise: 0.6, price: 3, parking: true, cleanliness: 0.9, service: 0.85, waitMinutes: 20, popularity: 0.65,
-        vibes: ['cozy', 'design'], goodFor: ['partner', 'friends', 'coworkers'], quick: false,
-        hours: 'Mo-Su 11:30-14:30,16:30-21:30', lat: 38.6589, lon: -121.1487,
-        blurb: 'Quiet omakase counter with warm wood lighting.',
-      },
-      {
-        id: 'demo-lotus', name: 'Golden Lotus', cuisine: ['chinese'],
-        noise: 1.0, price: 2, parking: true, cleanliness: 0.65, service: 0.6, waitMinutes: 10, popularity: 0.55,
-        vibes: [], goodFor: ['family', 'friends'], quick: false,
-        hours: 'Mo-Su 11:00-21:30', lat: 38.6725, lon: -121.1499,
-        blurb: 'Lazy-Susan tables built for big families.',
-      },
-      {
-        id: 'demo-bangkok', name: 'Bangkok Garden', cuisine: ['thai'],
-        noise: 0.8, price: 2, parking: true, cleanliness: 0.8, service: 0.9, waitMinutes: 10, popularity: 0.6,
-        vibes: ['patio'], goodFor: ['partner', 'friends', 'family', 'coworkers'], quick: false,
-        hours: 'Mo-Su 11:00-21:00', lat: 38.6801, lon: -121.1655,
-        blurb: 'Garden patio strung with lights.',
-      },
-      {
-        id: 'demo-spice', name: 'Spice Route Indian', cuisine: ['indian'],
-        noise: 0.9, price: 2, parking: true, cleanliness: 0.7, service: 0.4, waitMinutes: 5, popularity: 0.45,
-        vibes: [], goodFor: ['family', 'friends', 'coworkers'], quick: false,
-        hours: 'Mo-Su 11:00-22:00', lat: 38.6643, lon: -121.1702,
-        blurb: 'Great curry; reviews mention slow, curt service.',
-      },
-      {
-        id: 'demo-quickfork', name: 'Quick Fork Grill', cuisine: ['american'],
-        noise: 1.0, price: 1, parking: true, cleanliness: 0.9, service: 0.75, waitMinutes: 0, popularity: 0.5,
-        vibes: [], goodFor: ['solo', 'coworkers', 'family'], quick: true,
-        hours: 'Mo-Su 10:00-22:00', lat: 38.6688, lon: -121.1525,
-        blurb: 'Clean counter-service burgers, drive-thru too.',
-      },
-      {
-        id: 'demo-harbor', name: 'Harbor Point Oyster Bar', cuisine: ['seafood'],
-        noise: 1.5, price: 4, parking: true, cleanliness: 0.85, service: 0.85, waitMinutes: 45, popularity: 0.9,
-        vibes: ['views', 'patio', 'live_music'], goodFor: ['partner', 'friends'], quick: false,
-        hours: 'We-Su 15:00-23:00', lat: 38.7101, lon: -121.1632,
-        blurb: 'Marina views and a jazz trio on weekends.',
-      },
-      {
-        id: 'demo-depot', name: 'Depot Diner', cuisine: ['american', 'brunch'],
-        noise: 1.1, price: 1, parking: true, cleanliness: 0.7, service: 0.85, waitMinutes: 15, popularity: 0.6,
-        vibes: ['local'], goodFor: ['family', 'friends', 'solo'], quick: false,
-        hours: 'Mo-Su 06:30-14:30', lat: 38.6774, lon: -121.1779,
-        blurb: 'Inside the old train depot. Breakfast and lunch only.',
-      },
-      {
-        id: 'demo-tacotruck', name: 'Amphitheater Tacos', cuisine: ['mexican'],
-        noise: 1.8, price: 1, parking: false, cleanliness: 0.6, service: 0.8, waitMinutes: 10, popularity: 0.8,
-        vibes: ['live_music', 'patio'], goodFor: ['friends', 'solo'], quick: true,
-        hours: 'Th-Su 17:00-23:00', lat: 38.6769, lon: -121.1786,
-        blurb: 'Food truck next to the live-music amphitheater.',
-      },
-      {
-        id: 'demo-olive', name: 'Olive & Fig Mezze', cuisine: ['mediterranean'],
-        noise: 0.5, price: 3, parking: true, cleanliness: 0.9, service: 0.95, waitMinutes: 15, popularity: 0.55,
-        vibes: ['views', 'design', 'cozy'], goodFor: ['partner', 'family', 'coworkers'], quick: false,
-        hours: 'Tu-Su 11:30-21:30; Mo off', lat: 38.6934, lon: -121.1508,
-        blurb: 'Hilltop dining room overlooking the valley.',
-      },
-      {
-        id: 'demo-pho', name: 'Pho Saigon Corner', cuisine: ['asian'],
-        noise: 0.9, price: 1, parking: true, cleanliness: 0.8, service: 0.7, waitMinutes: 5, popularity: 0.6,
-        vibes: [], goodFor: ['solo', 'family', 'coworkers'], quick: true,
-        hours: 'Mo-Su 10:00-21:00', lat: 38.6631, lon: -121.1611,
-        blurb: 'Steaming bowls in under ten minutes.',
-      },
+      // Historic District
+      place('Sutter Street Steakhouse', ['steak', 'seafood'], 'Sutter St', 'sutter', 'restaurant', {
+        vibes: ['cozy', 'patio'], goodFor: ['partner', 'coworkers', 'family', 'friends'],
+        blurb: 'Romantic steakhouse with an extensive wine list and patio seating.',
+      }),
+      place('Hop Sing Palace', ['chinese'], 'Sutter St', 'sutter', 'restaurant', {
+        vibes: ['cozy', 'local'], blurb: 'Neighborhood staple since 1957 in a historic Sutter Street building.',
+      }),
+      place('Chicago Fire', ['italian', 'american'], 'Sutter St', 'sutter', 'restaurant', {
+        noise: 1.3, goodFor: ['family', 'friends', 'coworkers'], blurb: 'Deep-dish pizza, good for family night and groups.',
+      }),
+      place("Scott's Seafood Roundhouse", ['seafood', 'american'], 'Historic District', 'sutter', 'restaurant'),
+      place("Riley's on Sutter", ['american'], 'Sutter St', 'sutter', 'restaurant'),
+      place('Hacienda Del Rio', ['mexican'], 'Sutter St', 'sutter', 'restaurant'),
+      place('The Fat Rabbit Public House', ['pub', 'american'], 'Sutter St', 'sutter', 'pub', {
+        blurb: 'Comfortable pub, often named the best in Folsom.',
+      }),
+      place("Samuel Horne's Tavern", ['pub', 'american'], 'Sutter St', 'sutter', 'pub', {
+        vibes: ['local'], blurb: 'Tavern focused on local beers.',
+      }),
+      place("Catherine's Crêperie", ['cafe', 'brunch'], '200 Wool St', 'sutter', 'cafe', {
+        blurb: 'Locally owned café with sweet and savory French crêpes.',
+      }),
+      place('Nara Sushi', ['japanese'], '1125 Riley St', 'riley', 'restaurant'),
+
+      // By the lake and river
+      place('Crawdads on the Lake', ['american', 'seafood'], '9900 Greenback Ln', 'greenbackBridge', 'restaurant', {
+        noise: 1.2, price: 2, vibes: ['views', 'patio'], hours: 'Mo-Th,Su 11:00-20:00; Fr,Sa 11:00-21:00',
+        blurb: 'Above the American River near Old Town, with sunset views over the water.',
+      }),
+      place('Taj Grill Indian Cuisine', ['indian'], '9500 Greenback Ln, Ste 33', 'greenbackWest', 'restaurant'),
+
+      // Blue Ravine
+      place('Mexquite Mexican Cuisine', ['mexican'], '25095 Blue Ravine Rd', 'blueRavineEast', 'restaurant'),
+      place('Back Wine Bar', ['american'], '25075 Blue Ravine Rd, #150', 'blueRavineEast', 'restaurant', {
+        noise: 0.8, goodFor: ['partner', 'friends', 'coworkers'],
+      }),
+      place('Curry Club Indian Bistro', ['indian'], '196 Blue Ravine Rd', 'blueRavineWest', 'restaurant'),
+
+      // Palladio
+      place('Back Bistro', ['american'], 'Palladio', 'palladio', 'restaurant', {
+        noise: 0.8, goodFor: ['partner', 'friends', 'coworkers'],
+        blurb: 'Seasonal menu with 30 wines by the glass, craft cocktails and microbrews.',
+      }),
+      place('Lazy Dog Restaurant & Bar', ['american'], '300 Palladio Pkwy', 'palladio', 'restaurant', {
+        noise: 1.4, goodFor: ['family', 'friends', 'coworkers'],
+      }),
+      place('Chops Restaurant', ['american', 'steak'], '250 Palladio Pkwy, Ste 1339', 'palladio', 'restaurant'),
+      place('Petra Greek', ['mediterranean'], '230 Palladio Pkwy, #1213', 'palladio', 'casual'),
+      place('Mas Taco Bar', ['mexican'], '450 Palladio Pkwy', 'palladio', 'casual'),
+      place('Pier 50 Sushi', ['japanese'], '330 Palladio Pkwy, #2045', 'palladio', 'restaurant'),
+      place('Iron Horse Tavern', ['pub', 'american'], '460 Palladio Pkwy', 'palladio', 'pub'),
+      place('Johnny Rockets', ['american'], '280 Palladio Pkwy', 'palladio', 'casual'),
+      place("BJ's Restaurant & Brewhouse", ['pub', 'american'], '2730 E Bidwell St', 'eastBidwell', 'pub', {
+        goodFor: ['friends', 'coworkers', 'family'],
+      }),
+
+      // Iron Point / Prairie City
+      place("Fat's Asia Bistro", ['chinese', 'asian'], '2585 Iron Point Rd', 'ironPoint', 'restaurant'),
+      place('Folsom Thai Cuisine', ['thai'], '2371 Iron Point Rd', 'ironPoint', 'restaurant'),
+      place('Olive Garden Italian Restaurant', ['italian'], '2485 Iron Point Rd', 'ironPoint', 'restaurant', {
+        goodFor: ['family', 'friends', 'coworkers'],
+      }),
+      place('Islands', ['american'], '2455 Iron Point Rd', 'ironPoint', 'casual'),
+      place('Taqueria Los Cerros', ['mexican'], '2405 Iron Point Rd, Ste 120', 'ironPoint', 'casual'),
+      place('IHOP', ['brunch', 'american'], '2525 Iron Point Rd', 'ironPoint', 'casual', {
+        goodFor: ['solo', 'family', 'friends'],
+      }),
+      place('Mylapore', ['indian', 'vegetarian'], '1760 Prairie City Rd, Ste 160', 'prairieCity', 'casual', {
+        blurb: 'South Indian vegetarian.',
+      }),
     ],
   };
 
