@@ -13,6 +13,8 @@
   const Match = window.FoodieMatch;
   const Places = window.FoodiePlaces;
   const DEMO = window.FOODIE_DEMO;
+  // Set by builds that can't reach location or map services (e.g. a sandboxed preview).
+  const DEMO_ONLY = !!window.FOODIE_DEMO_ONLY;
 
   const STORAGE_KEY = 'foodie.profiles.v1';
   const CODE_PREFIX = 'FOODIE1:';
@@ -27,7 +29,9 @@
     location: null, // { lat, lon, label, demo }
     status: null, // { kind: 'loading'|'error', text }
     outcome: null, // recommend() result
+    confirmRemove: null, // profile id awaiting a second tap
   };
+  if (DEMO_ONLY && !state.profiles.length) state.profiles = structuredClone(DEMO.sampleDiners || []);
   state.profiles.forEach((p) => state.selected.add(p.id));
 
   // ---------------------------------------------------------------------------
@@ -137,7 +141,7 @@
         <div class="actions">
           <button class="ghost small" data-action="retake" data-id="${p.id}" title="Update today's answers">Edit</button>
           <button class="ghost small" data-action="share" data-id="${p.id}">Share</button>
-          <button class="ghost small" data-action="remove" data-id="${p.id}" aria-label="Remove ${esc(p.name)}">✕</button>
+          <button class="ghost small" data-action="remove" data-id="${p.id}" aria-label="Remove ${esc(p.name)}">${state.confirmRemove === p.id ? 'Tap to remove' : '✕'}</button>
         </div>
       </div>`,
       )
@@ -221,7 +225,7 @@
     if (!p) return go('home');
     $app.innerHTML = `
       <section class="stack">
-        <h1>Nice to meet you, ${esc(p.name)}! 🎉</h1>
+        <h1>${p.updatedAt && Date.now() - Date.parse(p.updatedAt) < 5000 ? `Nice to meet you, ${esc(p.name)}! 🎉` : `${esc(p.name)}’s taste profile`}</h1>
         <div class="card">${profileChips(p)}
           ${arr(p.vibes).length ? `<p class="small muted" style="margin-top:8px">Loves: ${esc(p.vibes.map((v) => LABELS.vibe[v]).join(', '))}</p>` : ''}
         </div>
@@ -285,19 +289,20 @@
       </section>
       <section class="card stack">
         <h2>Where are you?</h2>
-        <div class="loc-grid">
+        ${DEMO_ONLY ? `<p class="small muted">This preview uses sample restaurants around Folsom, CA. Live search near you works when you run the app yourself.</p>
+        <button class="primary block" data-action="use-demo">Show picks around Folsom, CA</button>` : `<div class="loc-grid">
           <button class="primary block" data-action="use-location">📍 Use my location</button>
           <div class="row" style="flex-wrap:nowrap">
             <input type="text" id="town" placeholder="Or type a city, e.g. Folsom, CA" />
             <button data-action="search-town">Search</button>
           </div>
           <button class="block" data-action="use-demo">Try the demo (Folsom, CA sample data)</button>
-        </div>
+        </div>`}
         ${status}
       </section>
       <section><button class="ghost" data-action="home">← Change who’s eating</button></section>`;
     const town = document.getElementById('town');
-    town.addEventListener('keydown', (e) => {
+    town?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') searchTown();
     });
   }
@@ -528,13 +533,21 @@
     retake: (el) => startQuiz(state.profiles.find((p) => p.id === el.dataset.id)),
     remove: (el) => {
       const p = state.profiles.find((x) => x.id === el.dataset.id);
-      if (!p || !confirm(`Remove ${p.name}?`)) return;
+      if (!p) return;
+      if (state.confirmRemove !== p.id) {
+        state.confirmRemove = p.id;
+        return render();
+      }
+      state.confirmRemove = null;
       state.profiles = state.profiles.filter((x) => x.id !== p.id);
       state.selected.delete(p.id);
       saveProfiles();
       render();
     },
-    share: (el) => copyCode(el.dataset.id),
+    share: (el) => {
+      state.lastCreatedId = el.dataset.id;
+      go('done');
+    },
     'copy-code': (el) => copyCode(el.dataset.id),
     'show-import': () => {
       const box = document.getElementById('import');
@@ -584,13 +597,19 @@
       await navigator.clipboard.writeText(code);
       toast(`Copied ${p.name}’s code`);
     } catch {
-      prompt('Copy this code:', code);
+      const box = document.getElementById('share-code');
+      if (box) {
+        box.focus();
+        box.select();
+        toast('Code selected. Copy it with your keyboard or long-press.');
+      }
     }
   }
 
   document.addEventListener('click', (e) => {
     const el = e.target.closest('[data-action]');
     if (!el || el.tagName === 'INPUT') return;
+    if (el.dataset.action !== 'remove' && state.confirmRemove) state.confirmRemove = null;
     const fn = actions[el.dataset.action];
     if (fn) fn(el);
   });
