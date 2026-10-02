@@ -169,7 +169,7 @@
     return [
       row('Craving', craving && fresh ? `${craving} (something different)` : craving),
       row('Near', p.zip ? `${zipTown(p.zip)} (${p.zip})` : ''),
-      row('Mood', p.novelty === 'new' ? 'Something new' : p.novelty ? 'My favorites' : ''),
+      row('Mood', !signedIn() ? '' : p.novelty === 'new' ? 'Something new' : p.novelty ? 'My favorites' : ''),
       row('Noise', LABELS.noise[p.noise]),
       row('Wait', LABELS.wait[p.maxWait]),
       row('With', LABELS.company[p.diningWith]),
@@ -197,6 +197,7 @@
   }
 
   function go(view) {
+    if (view !== 'table') state.justFinished = null;
     state.view = view;
     render();
     window.scrollTo({ top: 0 });
@@ -395,13 +396,24 @@
     </section>`;
   }
 
+  /** Your code, front and center, so anyone (guests too) can share it with the group. */
+  function myCodeRow(me) {
+    if (shared.code) {
+      return `<div class="mycode">
+        <span class="small muted">Your code</span>
+        <strong id="share-code-text">${esc(shared.code.slice(0, 3))} ${esc(shared.code.slice(3))}</strong>
+        <button class="small" data-action="copy-code" data-id="${me.id}">Copy</button>
+      </div>`;
+    }
+    return `<div><button class="small" data-action="share" data-id="${me.id}">Share my code</button></div>`;
+  }
+
   function renderTable() {
     const me = owner();
     if (!me) return go('welcome');
     const friends = state.profiles.filter((p) => !p.owner);
     const joining = friends.filter((p) => state.selected.has(p.id));
-    const fresh = state.justFinished === me.id;
-    state.justFinished = null;
+    const fresh = state.justFinished === me.id; // cleared when you leave this screen
 
     $app.innerHTML = `
       <section class="stack">
@@ -421,6 +433,7 @@
         <div>
           <h2>Who’s joining you?</h2>
         </div>
+        ${myCodeRow(me)}
         ${friends.length ? `<div class="card list">${friends.map(dinerRow).join('')}</div>` : ''}
         <div id="nearby" class="stack" hidden></div>
         <div class="add-grid">
@@ -439,7 +452,6 @@
           ? `<span class="small muted">${esc(state.auth.email)}${state.auth.twoFactor ? ' · 2FA on' : ''}</span>
              <button class="ghost small" data-action="log-out">Log out</button>`
           : `<button class="ghost small" data-action="auth-start" data-mode="login">Log in to save favorites</button>`}
-        <button class="ghost small" data-action="share" data-id="${me.id}">Share my code</button>
         <button class="ghost small" data-action="reset">${state.confirmRemove === 'reset' ? 'Tap again to delete session' : 'Delete session'}</button>
       </section>
       <div class="actionbar">
@@ -680,7 +692,13 @@
   function startQuiz(existing, { skipName = false, isNew = false } = {}) {
     const answers = existing ? structuredClone(existing) : { cuisines: [], dealbreakers: [], vibes: [] };
     const isOwner = !!answers.owner;
-    const steps = QUIZ.filter((q) => (q.id !== 'name' || !(skipName || isOwner)) && (!q.ownerOnly || isOwner));
+    // "Favorites or something new?" only makes sense with saved favorites, so it's for logged-in owners.
+    // Guests, and people added on this phone, are set to "something new".
+    const asksNovelty = isOwner && signedIn();
+    if (!asksNovelty) answers.novelty = 'new';
+    const steps = QUIZ.filter(
+      (q) => (q.id !== 'name' || !(skipName || isOwner)) && (!q.ownerOnly || isOwner) && (q.id !== 'novelty' || asksNovelty),
+    );
     state.quiz = { step: 0, steps, answers, owner: isOwner, isNew, editingId: isNew ? null : existing?.id || null };
     go('quiz');
   }
@@ -860,6 +878,7 @@
     try {
       const mine = await db.doc(`codes/${uid}`).get();
       if (mine.exists && typeof mine.data().code === 'string') shared.code = mine.data().code;
+      if (shared.code && state.view === 'table') render();
     } catch {
       /* lookups still work; publishing will retry */
     }
@@ -881,6 +900,7 @@
       if (!code) return;
       await shared.db.doc(`codes/${shared.uid}`).set({ code, profile, updatedAt: Date.now() });
       shared.code = code;
+      if (state.view === 'table' && !document.activeElement?.matches('input, textarea')) render();
     } catch {
       shared.code = null; // e.g. view-only access: fall back to the long code
     }

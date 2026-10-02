@@ -281,3 +281,8 @@ input[type="password"] {
 /* Short friend code */
 .bigcode { margin: 4px 0; font: 500 2.6rem/1 var(--font-display); letter-spacing: 0.12em; text-align: center; font-variant-numeric: tabular-nums; user-select: all; }
 #import-code { letter-spacing: 0.15em; }
+
+/* Your code on the table screen */
+.mycode { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 14px; background: var(--accent-soft); }
+.mycode strong { flex: 1; font: 500 1.4rem/1 var(--font-display); letter-spacing: 0.1em; font-variant-numeric: tabular-nums; user-select: all; }
+.mycode button { min-height: 36px; }
