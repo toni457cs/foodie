@@ -13,7 +13,7 @@
   const { QUIZ, LABELS } = window.FoodieQuiz;
   const Match = window.FoodieMatch;
   const Places = window.FoodiePlaces;
-  const DEMO = window.FOODIE_DEMO;
+  const REGION = window.FOODIE_REGION;
   // Set by builds that can't reach location or map services (e.g. a sandboxed preview).
   const DEMO_ONLY = !!window.FOODIE_DEMO_ONLY;
 
@@ -338,8 +338,8 @@
               ${pr.shared.map((s) => `<span class="chip good">${esc(s)}</span>`).join('')}</div>`,
             )
             .join('')}
-          ${harmony.friction.length ? `<div>${harmony.friction.map((f) => `<span class="chip warn">${esc(f)}</span>`).join('')}</div>
-            <p class="small muted">We’ll weight picks so nobody gets stuck somewhere they’d hate.</p>` : ''}
+          ${harmony.friction.length ? `<div>${harmony.friction.map((f) => `<span class="chip">${esc(f)}</span>`).join('')}</div>
+            <p class="small muted">We’ll find places everyone can enjoy.</p>` : ''}
         </div>`
       : '';
 
@@ -361,19 +361,19 @@
             · <strong>Mood:</strong> ${combined.novelty === 'new' ? 'something new' : combined.novelty === 'mixed' ? 'split: favorites vs. new' : 'favorites'}
             · <strong>Dining as:</strong> ${esc(LABELS.company[combined.occasion] || combined.occasion)}</div>
           <div><strong>Loves:</strong> ${tally(combined.vibes, LABELS.vibe)}</div>
-          <div><strong>Dealbreakers (any one rules a place out):</strong> ${tally(combined.dealbreakers, LABELS.dealbreaker)}</div>
+          <div><strong>We’ll skip:</strong> ${tally(combined.dealbreakers, LABELS.dealbreaker)}</div>
         </div>
       </section>
       <section class="card stack">
-        <h2>Where are you?</h2>
-        ${DEMO_ONLY ? `<button class="primary block" data-action="use-demo">Folsom, CA</button>` : `<div class="loc-grid">
+        <h2>Where are you eating?</h2>
+        <div class="loc-grid">
           <button class="primary block" data-action="use-location">Use my location</button>
           <div class="row" style="flex-wrap:nowrap">
-            <input type="text" id="town" placeholder="Or type a city, e.g. Folsom, CA" value="${esc(owner()?.area || '')}" />
-            <button data-action="search-town">Search</button>
+            <input type="text" id="town" inputmode="${DEMO_ONLY ? 'numeric' : 'text'}" autocomplete="postal-code"
+              placeholder="${DEMO_ONLY ? 'ZIP code, e.g. 95630' : 'ZIP code or city'}" value="${esc(state.lastQuery || '')}" />
+            <button data-action="search-town">Go</button>
           </div>
-          <button class="block" data-action="use-demo">Folsom, CA (saved list)</button>
-        </div>`}
+        </div>
         ${status}
       </section>
       <section><button class="ghost" data-action="home">← Change who’s joining</button></section>`;
@@ -388,7 +388,7 @@
     const { results, excluded } = state.outcome;
     const top = results.slice(0, 10);
     const loc = state.location;
-    const estimatedNote = '<p class="small muted">Ratings, waits and parking aren’t verified yet.</p>';
+    const estimatedNote = '<p class="small muted">Good to call ahead for wait times.</p>';
 
     const card = (res, i) => {
       const r = res.restaurant;
@@ -396,7 +396,7 @@
       const meta = [
         r.cuisine.map((c) => LABELS.cuisine[c] || c).join(', '),
         price,
-        r.distanceKm != null ? `${loc.demo ? '~' : ''}${(r.distanceKm * 0.621).toFixed(1)} mi` : '',
+        r.distanceKm != null ? `${loc.saved ? '~' : ''}${(r.distanceKm * 0.621).toFixed(1)} mi` : '',
         r.waitMinutes != null ? `~${r.waitMinutes} min wait` : '',
       ].filter(Boolean);
       const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${r.name} ${r.lat},${r.lon}`)}`;
@@ -415,9 +415,7 @@
         </div>
         <ul class="small">
           ${res.highlights.slice(0, 4).map((h) => `<li class="plus">${esc(h.text)}${who(h)}</li>`).join('')}
-          ${res.concerns.slice(0, 2).map((h) => `<li class="minus">${esc(h.text)}${who(h)}</li>`).join('')}
         </ul>
-        ${res.unverified.length && !loc.demo ? `<div>${res.unverified.map((u) => `<span class="chip">? ${esc(u)} unverified</span>`).join('')}</div>` : ''}
         ${group.length > 1 ? `<details><summary>How each person feels about it</summary>
           <div class="stack" style="margin-top:8px">${res.members
             .map(
@@ -437,14 +435,14 @@
     $app.innerHTML = `
       <section>
         <h1>${group.length === 1 ? 'Your top picks' : group.length > 3 ? `Top picks for your table of ${group.length}` : `Top picks for ${esc(names(group.map((p) => p.name)))}`}</h1>
-        <p class="muted">Near ${esc(loc.label)} · ${results.length} good fits, ${excluded.length} ruled out</p>
+        <p class="muted">Near ${esc(loc.label)} · ${results.length} places to enjoy</p>
         ${estimatedNote}
       </section>
       <section>
-        ${top.length ? top.map(card).join('') : '<div class="card">Nothing passed everyone’s dealbreakers. Try relaxing a dealbreaker or the wait time, or search a bigger area.</div>'}
+        ${top.length ? top.map(card).join('') : '<div class="card">Your table has very particular tastes tonight. Try another ZIP code nearby, or loosen one preference.</div>'}
       </section>
       ${excluded.length ? `<section class="card">
-        <details><summary>Ruled out (${excluded.length})</summary>
+        <details><summary>Saved for another night (${excluded.length})</summary>
           <ul class="small">${excluded
             .slice(0, 40)
             .map((e) => `<li><strong>${esc(e.restaurant.name)}</strong>: ${esc(e.reasons.join('; '))}</li>`)
@@ -555,21 +553,40 @@
   // Location → recommendations
   // ---------------------------------------------------------------------------
 
+  const NEARBY_KM = 16; // about 10 miles
+  const MIN_PICKS = 8;
+
+  function regionPlacesNear(location) {
+    const withDistance = REGION.restaurants
+      .map((r) => ({ ...r, distanceKm: Math.round(Places.haversineKm(location.lat, location.lon, r.lat, r.lon) * 10) / 10 }))
+      .sort((a, b) => a.distanceKm - b.distanceKm);
+    const close = withDistance.filter((r) => r.distanceKm <= NEARBY_KM);
+    return close.length >= MIN_PICKS ? close : withDistance.slice(0, MIN_PICKS * 2);
+  }
+
+  const inRegion = (loc) => Places.haversineKm(loc.lat, loc.lon, REGION.center.lat, REGION.center.lon) <= REGION.radiusKm;
+
   async function findAt(location) {
-    state.location = location;
     state.status = { kind: 'loading', text: `Finding places near ${location.label}…` };
     render();
     try {
-      let restaurants;
-      if (location.demo) {
-        restaurants = DEMO.restaurants.map((r) => ({
-          ...r,
-          distanceKm: Math.round(Places.haversineKm(location.lat, location.lon, r.lat, r.lon) * 10) / 10,
-        }));
-      } else {
-        restaurants = await Places.fetchNearby(location.lat, location.lon);
-        if (!restaurants.length) throw new Error('No restaurants found nearby on OpenStreetMap. Try a nearby town or the demo.');
+      let restaurants = null;
+      let saved = false;
+      if (!DEMO_ONLY) {
+        try {
+          restaurants = await Places.fetchNearby(location.lat, location.lon);
+        } catch (err) {
+          if (!inRegion(location)) throw err;
+        }
       }
+      if (!restaurants || !restaurants.length) {
+        if (!inRegion(location)) {
+          throw new Error(`We’re starting with the Sacramento area. Try a ZIP code there, like 95630 or 95816.`);
+        }
+        restaurants = regionPlacesNear(location);
+        saved = true;
+      }
+      state.location = { ...location, saved };
       state.outcome = Match.recommend(restaurants, selectedProfiles(), { now: new Date() });
       state.status = null;
       go('results');
@@ -580,29 +597,48 @@
   }
 
   function useMyLocation() {
-    if (!navigator.geolocation) {
-      state.status = { kind: 'error', text: 'Your browser can’t share location. Type a city instead.' };
-      return render();
-    }
-    state.status = { kind: 'loading', text: 'Getting your location…' };
+    const fallback = () => {
+      state.status = { kind: 'error', text: 'We couldn’t find your location here. A ZIP code works just as well.' };
+      render();
+      document.getElementById('town')?.focus();
+    };
+    if (!navigator.geolocation) return fallback();
+    state.status = { kind: 'loading', text: 'Finding you…' };
     render();
+    // Some browsers never answer when the permission prompt is blocked, so don't wait forever.
+    let settled = false;
+    const once = (fn) => (...args) => {
+      if (settled) return;
+      settled = true;
+      fn(...args);
+    };
+    setTimeout(once(fallback), 8000);
     navigator.geolocation.getCurrentPosition(
-      (pos) => findAt({ lat: pos.coords.latitude, lon: pos.coords.longitude, label: 'you' }),
-      () => {
-        state.status = { kind: 'error', text: 'Couldn’t get your location. Type a city instead.' };
-        render();
-      },
-      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 },
+      once((pos) => findAt({ lat: pos.coords.latitude, lon: pos.coords.longitude, label: 'you' })),
+      once(fallback),
+      { enableHighAccuracy: false, timeout: 6000, maximumAge: 300000 },
     );
   }
 
   async function searchTown() {
     const text = document.getElementById('town')?.value.trim();
     if (!text) return;
+    state.lastQuery = text;
+    const zip = text.match(/^\d{5}$/) ? REGION.zips[text] : null;
+    if (zip) return findAt({ lat: zip[0], lon: zip[1], label: `${zip[2]} (${text})` });
+    if (DEMO_ONLY) {
+      state.status = {
+        kind: 'error',
+        text: /^\d{5}$/.test(text)
+          ? 'We’re starting with the Sacramento area. Try a ZIP code there, like 95630 or 95816.'
+          : 'Try a 5-digit ZIP code, like 95630.',
+      };
+      return render();
+    }
     state.status = { kind: 'loading', text: `Looking up ${text}…` };
     render();
     try {
-      findAt(await Places.geocode(text));
+      findAt(await Places.geocode(/^\d{5}$/.test(text) ? `${text}, USA` : text));
     } catch (err) {
       state.status = { kind: 'error', text: err.message };
       render();
@@ -621,7 +657,7 @@
     'to-account': () => go('account'),
     'add-here': () => startQuiz(null),
     'add-examples': () => {
-      for (const ex of DEMO.sampleDiners || []) {
+      for (const ex of REGION.sampleDiners || []) {
         const p = { ...structuredClone(ex), id: newId(), example: true };
         state.profiles.push(p);
         state.selected.add(p.id);
@@ -690,7 +726,6 @@
     },
     'use-location': useMyLocation,
     'search-town': searchTown,
-    'use-demo': () => findAt({ ...DEMO.center, demo: true }),
     loved: (el) => {
       const rid = el.dataset.rid;
       for (const p of selectedProfiles()) {

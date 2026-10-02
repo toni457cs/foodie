@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const Match = require('../js/matching.js');
 const Hours = require('../js/hours.js');
 const Places = require('../js/places.js');
-const DEMO = require('../js/demo-data.js');
+const DEMO = require('../js/region-data.js');
 
 // A Friday at 7pm: dinner time in the field test.
 const FRIDAY_7PM = new Date(2026, 9, 2, 19, 0);
@@ -50,7 +50,7 @@ test('one person’s dealbreaker vetoes a place for the whole group', () => {
   );
   assert.deepEqual(results.map((r) => r.restaurant.name), ['Calm Bistro']);
   assert.equal(excluded[0].restaurant.name, 'Rowdy Pub');
-  assert.match(excluded[0].reasons[0], /^Ana: too loud/);
+  assert.match(excluded[0].reasons[0], /^Ana: livelier than you like/);
 });
 
 test('unknown data never triggers a dealbreaker, but is flagged unverified', () => {
@@ -69,7 +69,7 @@ test('closed places are excluded (the field-test AI recommended a closed restaur
     { now: FRIDAY_7PM },
   );
   assert.equal(results.length, 0);
-  assert.deepEqual(excluded[0].reasons, ['closed right now']);
+  assert.deepEqual(excluded[0].reasons, ['closed at the moment']);
 });
 
 test('wait over the limit is excluded', () => {
@@ -148,7 +148,7 @@ test('compatibility: similar diners match, a loud-vs-quiet clash is flagged', ()
   const ac = Match.compatibility(quietA, c);
   assert.ok(ab.score > ac.score);
   assert.equal(ab.label, 'Easy match');
-  assert.ok(ac.friction.some((f) => f.includes("can't do loud")));
+  assert.ok(ac.friction.some((f) => f.includes('calmer spot')));
 
   const harmony = Match.groupHarmony([a, b, c]);
   assert.equal(harmony.pairs.length, 3);
@@ -209,4 +209,15 @@ test('OpenStreetMap elements become restaurants without invented ratings', () =>
   assert.equal(r.parking, null);
   assert.ok(r.distanceKm < 1);
   assert.equal(Places.fromOsm({ type: 'node', id: 1, lat: 0, lon: 0, tags: {} }), null);
+});
+
+test('region data: Petra Greek in Folsom and Midtown, ZIPs resolve inside the region', () => {
+  const petra = DEMO.restaurants.filter((r) => r.name === 'Petra Greek').map((r) => r.town).sort();
+  assert.deepEqual(petra, ['Folsom', 'Sacramento']);
+  const ids = DEMO.restaurants.map((r) => r.id);
+  assert.equal(new Set(ids).size, ids.length, 'restaurant ids are unique');
+  for (const [zip, [lat, lon]] of Object.entries(DEMO.zips)) {
+    const km = Places.haversineKm(lat, lon, DEMO.center.lat, DEMO.center.lon);
+    assert.ok(km <= DEMO.radiusKm, `${zip} is ${km} km out`);
+  }
 });

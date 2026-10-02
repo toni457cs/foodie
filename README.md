@@ -27,7 +27,7 @@ You can also double-click `index.html`. Location features work best over `http:/
    6. Who are you dining with today?
    7. *(optional, up to 2)* What makes a place feel special? Views, design & lighting, patio, live music…
 3. **Who's joining you?** Your profile is always at the table. Add people by having them take the quiz on your phone, or by pasting their share code (`FOODIE1:…`) from their own phone. You can also tap "Just me".
-4. **Location**: use your location, type a city, or try the Folsom demo data.
+4. **Location**: use your location, or enter a ZIP code (or a city, in the full app).
 5. **Results**: a ranked list with a group match %, *why* it fits (and for whom), concerns, how each person feels about it, and a "ruled out" list with reasons.
 6. **❤️ We loved it** saves the place to everyone's favorites, so "Stick to favorites" ranks it higher next time.
 
@@ -51,7 +51,7 @@ Weights are constants at the top of `js/matching.js` (`WEIGHTS`, `GROUP_BLEND`, 
 ## Data sources (`js/places.js`)
 
 - **Live:** OpenStreetMap via the Overpass API (free, no key). OSM gives cuisine, venue type, hours, outdoor seating and live music, but **not** cleanliness, service, wait or parking. Those fields stay `null`. They never trigger a dealbreaker and appear as "unverified" on the card. Noise is estimated from the venue type (pub > restaurant > café).
-- **Saved Folsom list:** `js/demo-data.js` has 31 real Folsom restaurants compiled from public listings (Tripadvisor, Yelp, OpenTable, Yellow Pages) in October 2026: name, cuisine, street address, and listed features such as a patio or lake view. Coordinates are approximate, placed by street or shopping center. Ratings, waits, parking and price are left unknown, and hours are filled in only where a listing gave them. Previews that can't reach the map service use this list.
+- **Saved Greater Sacramento list:** `js/region-data.js` has 89 real restaurants across Folsom, Sacramento (Downtown and Midtown), Roseville, Rocklin, Elk Grove, El Dorado Hills, Davis, Rancho Cordova, Citrus Heights and Fair Oaks. They were compiled from public listings (Tripadvisor, Yelp, OpenTable, Yellow Pages, Visit Folsom) in October 2026: name, cuisine, street address, and listed features such as a patio or lake view. It also maps 55 area ZIP codes to the middle of their town or neighborhood. Coordinates are approximate. Ratings, waits, parking and price are left unknown, and hours are filled in only where a listing gave them. The app uses this list in previews that can't reach the map service, or when a live lookup inside the region fails. It shows places within about 10 miles.
 - **To go further:** fill the same fields from a source with reviews (Google Places, Yelp Fusion, Foursquare). `cleanliness`, `service` and `popularity` map naturally to review sentiment and counts.
 
 ## Files
@@ -63,7 +63,7 @@ js/quiz.js          quiz questions + labels
 js/matching.js      scoring, group recommendation, profile compatibility (pure functions)
 js/hours.js         opening_hours parser
 js/places.js        OpenStreetMap + geocoding
-js/demo-data.js     fictional demo restaurants
+js/region-data.js   Greater Sacramento restaurants + ZIP lookup
 js/app.js           UI
 tests/              node:test suite for the engine
 ```

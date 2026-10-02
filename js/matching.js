@@ -56,11 +56,11 @@
   const MAX_DISTANCE_PENALTY = 0.1;
 
   const DEALBREAKER_RULES = {
-    messy: { field: 'cleanliness', hit: (r) => r.cleanliness < 0.5, reason: 'looks messy', unknown: 'cleanliness' },
-    no_parking: { field: 'parking', hit: (r) => r.parking === false, reason: 'no parking', unknown: 'parking' },
-    rude_service: { field: 'service', hit: (r) => r.service < 0.5, reason: 'service complaints', unknown: 'service' },
-    pricey: { field: 'price', hit: (r) => r.price >= 4, reason: 'too pricey ($$$$)', unknown: 'price' },
-    loud: { field: 'noise', hit: (r) => r.noise >= 1.75, reason: 'too loud', unknown: 'noise level' },
+    messy: { field: 'cleanliness', hit: (r) => r.cleanliness < 0.5, reason: 'tidier spots suit you better', unknown: 'cleanliness' },
+    no_parking: { field: 'parking', hit: (r) => r.parking === false, reason: 'parking can be tricky', unknown: 'parking' },
+    rude_service: { field: 'service', hit: (r) => r.service < 0.5, reason: 'service reviews are mixed', unknown: 'service' },
+    pricey: { field: 'price', hit: (r) => r.price >= 4, reason: 'more of a splurge ($$$$)', unknown: 'price' },
+    loud: { field: 'noise', hit: (r) => r.noise >= 1.75, reason: 'livelier than you like', unknown: 'noise level' },
   };
 
   const clamp01 = (x) => Math.max(0, Math.min(1, x));
@@ -83,7 +83,7 @@
       else if (rule.hit(r)) reasons.push(rule.reason);
     }
     if (known(p.maxWait) && known(r.waitMinutes) && r.waitMinutes > p.maxWait) {
-      reasons.push(`~${r.waitMinutes} min wait (max ${p.maxWait})`);
+      reasons.push(`~${r.waitMinutes} min wait, more than ${p.maxWait}`);
     }
     return { reasons, unverified };
   }
@@ -252,7 +252,7 @@
       const reasons = [];
       const unverified = new Set();
       const openNow = r.hours ? Hours.isOpenAt(r.hours, now) : null;
-      if (openNow === false) reasons.push('closed right now');
+      if (openNow === false) reasons.push('closed at the moment');
       if (openNow === null) unverified.add('opening hours');
 
       for (const p of profiles) {
@@ -318,7 +318,7 @@
       const both = ca.filter((c) => cb.includes(c));
       if (both.length) shared.push(`both craving ${both.map((c) => L.cuisine[c] || c).join(', ')}`);
       else if (ca.length && cb.length) {
-        friction.push(`no cravings in common (${a.name}: ${ca.map((c) => L.cuisine[c] || c).join(', ')} vs ${b.name}: ${cb.map((c) => L.cuisine[c] || c).join(', ')})`);
+        friction.push(`${a.name} and ${b.name} bring different cravings to try`);
       }
     }
 
@@ -326,7 +326,7 @@
     const nb = NOISE_LEVEL[b.noise] ?? 1;
     const noise = 1 - Math.abs(na - nb) / 2;
     if (na === nb) shared.push(`both want ${(L.noise[a.noise] || 'the same noise level').toLowerCase()}`);
-    else if (Math.abs(na - nb) === 2) friction.push(`${a.name} wants quiet, ${b.name} wants high energy`);
+    else if (Math.abs(na - nb) === 2) friction.push(`a middle ground on noise for ${a.name} and ${b.name}`);
 
     const wa = Math.min(a.maxWait ?? 30, 60);
     const wb = Math.min(b.maxWait ?? 30, 60);
@@ -337,14 +337,14 @@
     if (vibesBoth.length) shared.push(`both love ${vibesBoth.map((v) => (L.vibe[v] || v).toLowerCase()).join(', ')}`);
 
     const novelty = a.novelty === b.novelty ? 1 : 0.5;
-    if (a.novelty && a.novelty !== b.novelty) friction.push('one wants favorites, the other wants something new');
+    if (a.novelty && a.novelty !== b.novelty) friction.push('a mix of old favorites and something new');
 
     let score = 0.35 * cuisine + 0.25 * noise + 0.15 * (vibe ?? 0.5) + 0.15 * wait + 0.1 * novelty;
 
     // One person's dealbreaker clashing with the other's preference.
     const clash = (x, y) => {
       if (list(x.dealbreakers).includes('loud') && y.noise === 'high') {
-        friction.push(`${x.name} can't do loud, ${y.name} wants high energy`);
+        friction.push(`a calmer spot with some energy for ${x.name} and ${y.name}`);
         score -= 0.15;
       }
     };
@@ -357,8 +357,8 @@
 
   function harmonyLabel(score) {
     if (score >= 0.75) return 'Easy match';
-    if (score >= 0.5) return 'Some compromise';
-    return 'Tough crowd';
+    if (score >= 0.5) return 'Good balance';
+    return 'Room to explore';
   }
 
   /** Average pairwise compatibility for the whole table. */
