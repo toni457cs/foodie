@@ -112,6 +112,20 @@
   // You're always at your own table; friends are opt-in.
   const selectedProfiles = () => state.profiles.filter((p) => p.owner || state.selected.has(p.id));
 
+  function profileFacts(p) {
+    const row = (k, v) => (v ? `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>` : '');
+    const list = (vals, labels) => arr(vals).map((v) => labels[v] || v).join(', ');
+    return [
+      row('Craving', list(p.cuisines, LABELS.cuisine)),
+      row('Mood', p.novelty === 'new' ? 'Something new' : p.novelty ? 'My favorites' : ''),
+      row('Noise', LABELS.noise[p.noise]),
+      row('Wait', LABELS.wait[p.maxWait]),
+      row('With', LABELS.company[p.diningWith]),
+      row('I love', list(p.vibes, LABELS.vibe)),
+      row('Dealbreakers', list(p.dealbreakers, LABELS.dealbreaker) || 'None'),
+    ].join('');
+  }
+
   function profileChips(p) {
     const chips = [];
     const cuisines = arr(p.cuisines);
@@ -119,7 +133,7 @@
     if (p.novelty) chips.push(p.novelty === 'new' ? 'Something new' : 'Favorites');
     if (p.maxWait != null) chips.push(LABELS.wait[p.maxWait] || `${p.maxWait} min wait`);
     const crave = cuisines.map((c) => `<span class="chip saffron">${esc(LABELS.cuisine[c] || c)}</span>`);
-    const deal = arr(p.dealbreakers).map((d) => `<span class="chip bad">✕ ${esc(LABELS.dealbreaker[d] || d)}</span>`);
+    const deal = arr(p.dealbreakers).map((d) => `<span class="chip bad" title="Dealbreaker">${esc(LABELS.dealbreaker[d] || d)}</span>`);
     return crave.join('') + chips.map((c) => `<span class="chip">${esc(c)}</span>`).join('') + deal.join('');
   }
 
@@ -136,10 +150,13 @@
   function renderWelcome() {
     $app.innerHTML = `
       <section class="hero">
-        <div class="plate" aria-hidden="true"><span>🍝</span><span>🌮</span><span>🍣</span><span>🥐</span><span>🥩</span><span>🥗</span></div>
+        <svg class="setting" viewBox="0 0 220 120" aria-hidden="true">
+          <path d="M38 18v30c0 7 5 11 10 11v45M48 18v28M58 18v30c0 7-5 11-10 11" />
+          <circle cx="110" cy="62" r="46" /><circle cx="110" cy="62" r="31" />
+          <path d="M176 104V20c11 6 14 26 14 40h-14" />
+        </svg>
         <h1>Dinner, decided together.</h1>
-        <p>Tell us what you’re craving and the kind of place you love. Then bring your people, and we’ll find a table everyone’s happy at.</p>
-        <button class="primary block" data-action="to-account">Create my account</button>
+        <p>Tell us what you’re craving and the kind of place you love. Bring your people, and we’ll find a table everyone is happy at.</p>
       </section>
       <section>
         <h2 class="eyebrow">How it works</h2>
@@ -148,7 +165,8 @@
           <li><div><strong>Add who you’re eating with.</strong> They take the quiz on your phone, or send you their code.</div></li>
           <li><div><strong>Get picks for the whole table.</strong> Ranked by fit, with the reasons for each person.</div></li>
         </ol>
-      </section>`;
+      </section>
+      <div class="actionbar"><button class="primary block" data-action="to-account">Create my account</button></div>`;
   }
 
   function renderAccount() {
@@ -210,7 +228,7 @@
         <div class="actions">
           <button class="ghost small" data-action="retake" data-id="${p.id}">Edit</button>
           <button class="ghost small" data-action="share" data-id="${p.id}">Code</button>
-          <button class="ghost small" data-action="remove" data-id="${p.id}" aria-label="Remove ${esc(p.name)}">${state.confirmRemove === p.id ? 'Tap to remove' : '✕'}</button>
+          <button class="ghost small" data-action="remove" data-id="${p.id}" aria-label="Remove ${esc(p.name)}">${state.confirmRemove === p.id ? 'Tap to remove' : 'Remove'}</button>
         </div>
       </div>`;
   }
@@ -222,7 +240,6 @@
     const joining = friends.filter((p) => state.selected.has(p.id));
     const fresh = state.justFinished === me.id;
     state.justFinished = null;
-    const vibes = arr(me.vibes).map((v) => `<span class="chip basil">${esc(LABELS.vibe[v] || v)}</span>`).join('');
 
     $app.innerHTML = `
       <section class="stack">
@@ -233,8 +250,7 @@
             <h2>Today I’m feeling…</h2>
             <button class="ghost small" data-action="retake" data-id="${me.id}">Update</button>
           </div>
-          <div>${profileChips(me)}</div>
-          ${vibes ? `<div><span class="small muted">I love </span>${vibes}</div>` : ''}
+          <dl class="facts">${profileFacts(me)}</dl>
         </div>
       </section>
 
@@ -245,9 +261,9 @@
         </div>
         ${friends.length ? `<div class="card list">${friends.map(dinerRow).join('')}</div>` : ''}
         <div class="add-grid">
-          <button data-action="add-here">🙋 Add someone here<span class="hint">They take the quiz on this phone</span></button>
-          <button data-action="show-import">🔗 Paste a friend’s code<span class="hint">From their own phone</span></button>
-          ${DEMO_ONLY && !friends.some((p) => p.example) ? `<button data-action="add-examples">🍽️ Add example friends<span class="hint">To try out group picks</span></button>` : ''}
+          <button data-action="add-here">Add someone here<span class="hint">They take the quiz on this phone</span></button>
+          <button data-action="show-import">Paste a friend’s code<span class="hint">From their own phone</span></button>
+          ${DEMO_ONLY && !friends.some((p) => p.example) ? `<button data-action="add-examples">Add example friends<span class="hint">To try out group picks</span></button>` : ''}
         </div>
         <div id="import" class="card stack" hidden>
           <label for="import-code"><strong>Paste a friend’s Foodie code</strong></label>
@@ -256,15 +272,15 @@
         </div>
       </section>
 
-      <section class="stack">
-        <button class="primary block big" data-action="to-group">
-          ${joining.length ? `Find a table for ${joining.length + 1} →` : 'Just me. Show my picks →'}
+      <section class="row">
+        <button class="ghost small" data-action="share" data-id="${me.id}">Share my code</button>
+        <button class="ghost small" data-action="reset">${state.confirmRemove === 'reset' ? 'Tap again to delete my account' : 'Delete my account'}</button>
+      </section>
+      <div class="actionbar">
+        <button class="primary block" data-action="to-group">
+          ${joining.length ? `Find a table for ${joining.length + 1}` : 'Just me. Show my picks'}
         </button>
-        <div class="row">
-          <button class="ghost small" data-action="share" data-id="${me.id}">Share my code</button>
-          <button class="ghost small" data-action="reset">${state.confirmRemove === 'reset' ? 'Tap again to delete my account' : 'Delete my account'}</button>
-        </div>
-      </section>`;
+      </div>`;
   }
 
   function renderQuiz() {
@@ -281,7 +297,7 @@
         ${q.options
           .map(
             (o) => `<button class="option" data-action="answer" data-value="${esc(o.value)}" aria-pressed="${isOn(o.value)}">
-              <span class="emoji" aria-hidden="true">${o.emoji || ''}</span>
+              <span class="tick ${q.type === 'multi' ? 'square' : ''}" aria-hidden="true"></span>
               <span>${esc(o.label)}${o.hint ? `<span class="hint">${esc(o.hint)}</span>` : ''}</span>
             </button>`,
           )
@@ -297,7 +313,7 @@
       <h1>${esc(q.prompt)}</h1>
       ${q.hint ? `<p class="muted">${esc(q.hint)}</p>` : ''}
       ${body}
-      <div class="quiz-nav">
+      <div class="actionbar quiz-nav">
         <button class="ghost" data-action="quiz-back">← Back</button>
         ${showNext ? `<button class="primary" data-action="quiz-next" ${answered || q.optional ? '' : 'disabled'}>
           ${last ? 'Finish' : answered || !q.optional ? 'Next →' : 'Skip →'}</button>` : ''}
@@ -349,7 +365,7 @@
               ${pr.shared.map((s) => `<span class="chip good">${esc(s)}</span>`).join('')}</div>`,
             )
             .join('')}
-          ${harmony.friction.length ? `<div>${harmony.friction.map((f) => `<span class="chip warn">⚠ ${esc(f)}</span>`).join('')}</div>
+          ${harmony.friction.length ? `<div>${harmony.friction.map((f) => `<span class="chip warn">${esc(f)}</span>`).join('')}</div>
             <p class="small muted">We’ll weight picks so nobody gets stuck somewhere they’d hate.</p>` : ''}
         </div>`
       : '';
@@ -379,7 +395,7 @@
         <h2>Where are you?</h2>
         ${DEMO_ONLY ? `<p class="small muted">This preview uses sample restaurants around Folsom, CA. Live search near you works when you run the app yourself.</p>
         <button class="primary block" data-action="use-demo">Show picks around Folsom, CA</button>` : `<div class="loc-grid">
-          <button class="primary block" data-action="use-location">📍 Use my location</button>
+          <button class="primary block" data-action="use-location">Use my location</button>
           <div class="row" style="flex-wrap:nowrap">
             <input type="text" id="town" placeholder="Or type a city, e.g. Folsom, CA" value="${esc(owner()?.area || '')}" />
             <button data-action="search-town">Search</button>
@@ -415,7 +431,8 @@
         r.waitMinutes != null ? `~${r.waitMinutes} min wait` : '',
       ].filter(Boolean);
       const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${r.name} ${r.lat},${r.lon}`)}`;
-      const who = (h) => (group.length > 1 ? ` <span class="muted">(${esc(names(h.who))})</span>` : '');
+      const who = (h) =>
+        group.length < 2 ? '' : ` <span class="muted">(${h.who.length === group.length ? 'everyone' : esc(names(h.who))})</span>`;
       return `
       <article class="card result">
         <div class="spread">
@@ -427,8 +444,8 @@
           <div class="match"><strong>${pct(res.score)}%</strong><span class="small muted">match</span></div>
         </div>
         <ul class="small">
-          ${res.highlights.slice(0, 4).map((h) => `<li>✓ ${esc(h.text)}${who(h)}</li>`).join('')}
-          ${res.concerns.slice(0, 2).map((h) => `<li style="color:var(--warn)">⚠ ${esc(h.text)}${who(h)}</li>`).join('')}
+          ${res.highlights.slice(0, 4).map((h) => `<li class="plus">${esc(h.text)}${who(h)}</li>`).join('')}
+          ${res.concerns.slice(0, 2).map((h) => `<li class="minus">${esc(h.text)}${who(h)}</li>`).join('')}
         </ul>
         ${res.unverified.length ? `<div>${res.unverified.map((u) => `<span class="chip">? ${esc(u)} unverified</span>`).join('')}</div>` : ''}
         ${group.length > 1 ? `<details><summary>How each person feels about it</summary>
@@ -442,14 +459,14 @@
         <div class="row" style="margin-top:10px">
           <a class="btn small" href="${mapsUrl}" target="_blank" rel="noopener">Directions</a>
           ${r.website ? `<a class="btn small" href="${esc(r.website)}" target="_blank" rel="noopener">Website</a>` : ''}
-          <button class="small" data-action="loved" data-rid="${esc(r.id)}">❤️ We loved it</button>
+          <button class="small" data-action="loved" data-rid="${esc(r.id)}">Save as favorite</button>
         </div>
       </article>`;
     };
 
     $app.innerHTML = `
       <section>
-        <h1>Top picks for ${esc(names(group.map((p) => p.name)))}</h1>
+        <h1>${group.length === 1 ? 'Your top picks' : group.length > 3 ? `Top picks for your table of ${group.length}` : `Top picks for ${esc(names(group.map((p) => p.name)))}`}</h1>
         <p class="muted">Near ${esc(loc.label)} · ${results.length} good fits, ${excluded.length} ruled out</p>
         ${estimatedNote}
       </section>
@@ -708,7 +725,7 @@
       }
       saveProfiles();
       el.disabled = true;
-      el.textContent = '❤️ Saved to favorites';
+      el.textContent = 'Saved to favorites';
       toast('Saved. “Stick to favorites” will rank it higher next time.');
     },
   };
