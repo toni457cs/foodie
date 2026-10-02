@@ -277,3 +277,7 @@ input[type="password"] {
 .star svg { width: 24px; height: 24px; fill: currentColor; }
 .star.on { color: var(--ok); }
 .star:hover { color: var(--ok); }
+
+/* Short friend code */
+.bigcode { margin: 4px 0; font: 500 2.6rem/1 var(--font-display); letter-spacing: 0.12em; text-align: center; font-variant-numeric: tabular-nums; user-select: all; }
+#import-code { letter-spacing: 0.15em; }

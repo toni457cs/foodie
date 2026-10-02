@@ -6,8 +6,8 @@
  *       location) → Results
  *
  * Your session and profiles live in localStorage on this device. Friends on
- * other phones share a profile code ("FOODIE1:…") that you paste in, so
- * profiles can be matched without a server.
+ * other phones share a 6-digit code, looked up in the artifact's shared store,
+ * or, where there's no store, a long self-contained code ("FOODIE1:…").
  */
 (function () {
   const { QUIZ, LABELS } = window.FoodieQuiz;
@@ -179,6 +179,12 @@
     ].join('');
   }
 
+  /** One short line: cravings and noise, e.g. "Mexican, Italian · High energy". */
+  function profileSummary(p) {
+    const cravings = arr(p.cuisines).map((c) => LABELS.cuisine[c] || c).join(', ');
+    return [cravings, LABELS.noise[p.noise]].filter(Boolean).join(' · ');
+  }
+
   function profileChips(p) {
     const chips = [];
     const cuisines = arr(p.cuisines);
@@ -342,7 +348,7 @@
           aria-label="${esc(p.name)} is joining" />
         <div class="who">
           <label for="sel-${p.id}"><strong>${esc(p.name)}</strong></label>
-          <div>${profileChips(p)}</div>
+          <div class="small muted">${esc(profileSummary(p))}</div>
         </div>
         <div class="actions">
           <button class="ghost small" data-action="retake" data-id="${p.id}">Edit</button>
@@ -419,11 +425,11 @@
         <div id="nearby" class="stack" hidden></div>
         <div class="add-grid">
           <button data-action="add-here">Add someone here<span class="hint">They take the quiz on this phone</span></button>
-          <button data-action="show-import">Paste a friend’s code<span class="hint">From their own phone</span></button>
+          <button data-action="show-import">Enter a friend’s code<span class="hint">From their own phone</span></button>
         </div>
         <div id="import" class="card stack" hidden>
-          <label for="import-code"><strong>Paste a friend’s Foodie code</strong></label>
-          <textarea id="import-code" rows="3" placeholder="FOODIE1:…"></textarea>
+          <label for="import-code"><strong>Friend’s code</strong></label>
+          <input type="text" id="import-code" inputmode="numeric" autocomplete="off" placeholder="6-digit code" />
           <div class="row"><button class="primary" data-action="import">Add to the table</button></div>
         </div>
       </section>
@@ -510,16 +516,20 @@
   function renderShare() {
     const p = state.profiles.find((x) => x.id === state.shareId);
     if (!p) return go('table');
+    const short = p.owner && shared.code;
     $app.innerHTML = `
       <section class="stack">
-        <h1>${p.owner ? 'Your Foodie code' : `${esc(p.name)}’s Foodie code`}</h1>
-        <p class="muted">Send this to someone eating with you. They paste it under “Paste a friend’s code” and you’re both on their table.</p>
+        <h1>${p.owner ? 'Your code' : `${esc(p.name)}’s code`}</h1>
+        <p class="muted">Friends enter it under “Enter a friend’s code”.</p>
         <div class="card stack">
-          <textarea readonly rows="4" id="share-code">${esc(toCode(p))}</textarea>
+          ${short
+            ? `<p class="bigcode" id="share-code-text">${esc(short.slice(0, 3))} ${esc(short.slice(3))}</p>`
+            : `<textarea readonly rows="4" id="share-code">${esc(toCode(p))}</textarea>`}
           <div class="row"><button class="primary" data-action="copy-code" data-id="${p.id}">Copy code</button></div>
         </div>
         <button class="ghost" data-action="home">← Back to my table</button>
       </section>`;
+    if (p.owner && !shared.code && shared.db) publishShortCode().then(() => state.view === 'share' && render());
   }
 
   function renderGroup() {
@@ -749,6 +759,7 @@
     state.quiz = null;
     state.accountDraft = null;
     syncPresence();
+    publishShortCode();
     if (wasNewOwner) state.justFinished = profile.id;
     if (wasNewFriend) toast(`${profile.name} is joining you`);
     go('table');
@@ -833,6 +844,65 @@
 
 
   // ---------------------------------------------------------------------------
+  // Short friend codes: 6 digits pointing at your profile in the artifact's shared store.
+  // Each person can only write their own entry (codes/<their id>); everyone signed in can look one up.
+  // ---------------------------------------------------------------------------
+
+  const shared = { db: null, uid: null, code: null };
+
+  async function connectStore() {
+    if (!window.claude?.use) return;
+    const [db, user] = await Promise.all([window.claude.use('db').catch(() => null), window.claude.use('user').catch(() => null)]);
+    const uid = user ? await user.id().catch(() => null) : null;
+    if (!db || !uid) return;
+    shared.db = db;
+    shared.uid = uid;
+    try {
+      const mine = await db.doc(`codes/${uid}`).get();
+      if (mine.exists && typeof mine.data().code === 'string') shared.code = mine.data().code;
+    } catch {
+      /* lookups still work; publishing will retry */
+    }
+    if (owner()) publishShortCode();
+  }
+
+  /** Save (or refresh) your profile under your 6-digit code. */
+  async function publishShortCode() {
+    const me = owner();
+    if (!shared.db || !me) return;
+    const { favorites, ...profile } = Object.fromEntries(SHARE_FIELDS.map((k) => [k, me[k] ?? null]));
+    try {
+      let code = shared.code;
+      for (let tries = 0; !code && tries < 6; tries++) {
+        const candidate = String(Math.floor(100000 + Math.random() * 900000));
+        const taken = await shared.db.collection('codes').where('code', '==', candidate).limit(1).get();
+        if (!taken.docs.length) code = candidate;
+      }
+      if (!code) return;
+      await shared.db.doc(`codes/${shared.uid}`).set({ code, profile, updatedAt: Date.now() });
+      shared.code = code;
+    } catch {
+      shared.code = null; // e.g. view-only access: fall back to the long code
+    }
+  }
+
+  async function lookupShortCode(code) {
+    if (!shared.db) throw new Error('Short codes work in the shared Foodie link. Ask your friend for their long code.');
+    let snap;
+    try {
+      snap = await shared.db.collection('codes').where('code', '==', code).limit(1).get();
+    } catch {
+      throw new Error('Couldn’t look that up just now. Try again in a moment.');
+    }
+    const doc = snap.docs[0];
+    if (!doc) throw new Error('No one has that code yet. Check the digits with your friend.');
+    if (doc.id === shared.uid) throw new Error('That’s your own code.');
+    const profile = normalizeShared(doc.data().profile);
+    if (!profile) throw new Error('That code is missing a profile.');
+    return { ...profile, id: newId() };
+  }
+
+  // ---------------------------------------------------------------------------
   // Nearby with the app open (live presence, where the host offers a shared room)
   // ---------------------------------------------------------------------------
 
@@ -910,7 +980,7 @@
           <span class="dot" aria-hidden="true"></span>
           <div class="who">
             <strong>${esc(p.profile.name)}</strong>${p.town ? ` <span class="small muted">· ${esc(p.town)}</span>` : ''}
-            <div>${profileChips(p.profile)}</div>
+            <div class="small muted">${esc(profileSummary(p.profile))}</div>
           </div>
           ${added
             ? '<span class="small muted joined">Joining</span>'
@@ -1052,9 +1122,10 @@
       box.hidden = !box.hidden;
       if (!box.hidden) document.getElementById('import-code').focus();
     },
-    import: () => {
+    import: async () => {
+      const raw = document.getElementById('import-code').value.replace(/\s+/g, '');
       try {
-        const p = fromCode(document.getElementById('import-code').value);
+        const p = /^\d{6}$/.test(raw) ? await lookupShortCode(raw) : fromCode(raw);
         state.profiles.push(p);
         state.selected.add(p.id);
         saveProfiles();
@@ -1102,17 +1173,15 @@
   async function copyCode(id) {
     const p = state.profiles.find((x) => x.id === id);
     if (!p) return;
-    const code = toCode(p);
+    const code = p.owner && shared.code ? shared.code : toCode(p);
     try {
       await navigator.clipboard.writeText(code);
-      toast(`Copied ${p.name}’s code`);
+      toast(`Copied ${p.owner ? 'your' : `${p.name}’s`} code`);
     } catch {
-      const box = document.getElementById('share-code');
-      if (box) {
-        box.focus();
-        box.select();
-        toast('Code selected. Copy it with your keyboard or long-press.');
-      }
+      const box = document.getElementById('share-code') || document.getElementById('share-code-text');
+      if (box?.select) box.select();
+      else if (box) window.getSelection().selectAllChildren(box);
+      toast('Code selected. Copy it with your keyboard or long-press.');
     }
   }
 
@@ -1192,4 +1261,5 @@
 
   render();
   connectRoom();
+  connectStore();
 })();
