@@ -19,7 +19,7 @@ You can also double-click `index.html`. Location features work best over `http:/
 
 1. **Welcome → Log in / Create account, or Continue as guest**: guests can do everything except save favorites; tapping Save as favorite as a guest asks you to log in. **The login, account and two-factor screens are a clickable prototype for user testing.** Nothing is sent anywhere, passwords are never stored, and the 2FA step shows a test code on screen. Real accounts need an auth service, such as Supabase with authenticator-app 2FA. "Delete session" clears everything on this device.
 2. **Your taste quiz** (`js/quiz.js`): one question per screen:
-   1. What food genre are you craving today? (up to 2)
+   1. What food genre are you craving today? (up to 3)
    2. Stick to favorites · Try something new
    3. Ideal noise level? Quiet · Light buzz · High energy
    4. Instant dealbreaker? (up to 2) Messy · No parking · Rude service · Too pricey · Too loud

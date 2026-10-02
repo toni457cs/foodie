@@ -117,7 +117,7 @@
     const pick = (v, allowed) => (allowed.includes(v) ? v : undefined);
     return {
       name: data.name.trim().slice(0, 40),
-      cuisines: arr(data.cuisines).slice(0, 2),
+      cuisines: arr(data.cuisines).slice(0, 3),
       novelty: pick(data.novelty, ['favorites', 'new']),
       noise: pick(data.noise, ['quiet', 'buzz', 'high']),
       dealbreakers: arr(data.dealbreakers).filter((d) => d in LABELS.dealbreaker).slice(0, 2),
