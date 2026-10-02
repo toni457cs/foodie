@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Foodie: Group Dining Match</title>
+  <meta name="description" content="Take a quick taste quiz, match with the people you're eating with, and get local restaurant picks the whole table will enjoy." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍽️</text></svg>" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <button class="brand" data-action="home" aria-label="Foodie home">🍽️ Foodie</button>
+    <span class="tagline">A spot the whole table will love</span>
+  </header>
+  <main id="app" aria-live="polite"></main>
+  <div id="toast" role="status" hidden></div>
+
+  <script src="js/quiz.js"></script>
+  <script src="js/hours.js"></script>
+  <script src="js/matching.js"></script>
+  <script src="js/places.js"></script>
+  <script src="js/demo-data.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
