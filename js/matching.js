@@ -1,5 +1,5 @@
 /*
- * Foodie matching engine: pure functions, no DOM, so it runs in the browser and in Node tests.
+ * myfoodiegroup matching engine: pure functions, no DOM, so it runs in the browser and in Node tests.
  *
  *   scoreMember(restaurant, profile, ctx) → how well one place fits one person (0–1)
  *   recommend(restaurants, profiles, opts) → ranked places for the whole table
