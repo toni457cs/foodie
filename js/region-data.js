@@ -158,15 +158,6 @@
     center: { lat: 38.6, lon: -121.35, label: 'Greater Sacramento' },
     radiusKm: 80, // origins farther than this from the center are outside the saved list
     zips: ZIPS,
-    // Example diners offered in previews so group picks can be tried without friends.
-    sampleDiners: [
-      { id: 'ex-priya', name: 'Priya (example)', cuisines: ['cafe', 'mediterranean'], novelty: 'new', noise: 'buzz',
-        dealbreakers: ['messy'], maxWait: 30, diningWith: 'family', vibes: ['design', 'local'], favorites: [], visited: [] },
-      { id: 'ex-marcus', name: 'Marcus (example)', cuisines: ['any'], novelty: 'favorites', noise: 'buzz',
-        dealbreakers: ['no_parking'], maxWait: 15, diningWith: 'family', vibes: ['views', 'design'], favorites: [], visited: [] },
-      { id: 'ex-jules', name: 'Jules (example)', cuisines: ['cafe', 'steak'], novelty: 'new', noise: 'high',
-        dealbreakers: [], maxWait: 30, diningWith: 'family', vibes: ['design', 'live_music'], favorites: [], visited: [] },
-    ],
     restaurants: [
       // ---- Folsom: Historic District
       place('Sutter Street Steakhouse', ['steak', 'seafood'], 'Sutter St', 'sutter', 'restaurant', {

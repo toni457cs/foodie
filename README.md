@@ -26,7 +26,7 @@ You can also double-click `index.html`. Location features work best over `http:/
    5. How long will you wait for a table?
    6. Who are you dining with today?
    7. *(optional, up to 2)* What makes a place feel special? Views, design & lighting, patio, live music…
-3. **Who's joining you?** Your profile is always at the table. Add people by having them take the quiz on your phone, or by pasting their share code (`FOODIE1:…`) from their own phone. You can also tap "Just me".
+3. **Who's joining you?** Your profile is always at the table. Add people by having them take the quiz on your phone, or by pasting their share code (`FOODIE1:…`) from their own phone. You can also tap "Just me". Where the page runs as a shared Claude artifact, **Nearby with the app open** lists everyone who has it open right now. Each person shares their first name, taste answers and the town from their last ZIP search, never coordinates. Tap Add to bring them to your table.
 4. **Location**: use your location, or enter a ZIP code (or a city, in the full app).
 5. **Results**: a ranked list with a group match %, *why* it fits (and for whom), concerns, how each person feels about it, and a "ruled out" list with reasons.
 6. **❤️ We loved it** saves the place to everyone's favorites, so "Stick to favorites" ranks it higher next time.

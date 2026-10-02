@@ -74,15 +74,27 @@
     } catch {
       throw new Error('That code is incomplete. Make sure you copied all of it.');
     }
-    if (!data || typeof data.name !== 'string') throw new Error('That code is missing a name.');
-    const profile = { id: newId(), visited: [] };
-    for (const k of SHARE_FIELDS) profile[k] = data[k];
-    profile.cuisines = arr(profile.cuisines);
-    profile.dealbreakers = arr(profile.dealbreakers);
-    profile.vibes = arr(profile.vibes);
-    profile.favorites = arr(profile.favorites);
-    profile.name = profile.name.slice(0, 40);
-    return profile;
+    const profile = normalizeShared(data);
+    if (!profile) throw new Error('That code is missing a name.');
+    return { ...profile, id: newId() };
+  }
+
+  /** Clean up a profile that came from someone else (a code or a nearby diner). */
+  function normalizeShared(data) {
+    if (!data || typeof data.name !== 'string' || !data.name.trim()) return null;
+    const pick = (v, allowed) => (allowed.includes(v) ? v : undefined);
+    return {
+      name: data.name.trim().slice(0, 40),
+      cuisines: arr(data.cuisines).slice(0, 2),
+      novelty: pick(data.novelty, ['favorites', 'new']),
+      noise: pick(data.noise, ['quiet', 'buzz', 'high']),
+      dealbreakers: arr(data.dealbreakers).slice(0, 2),
+      maxWait: Number.isFinite(data.maxWait) ? data.maxWait : undefined,
+      diningWith: pick(data.diningWith, ['solo', 'partner', 'friends', 'family', 'coworkers']),
+      vibes: arr(data.vibes).slice(0, 2),
+      favorites: arr(data.favorites).slice(0, 50),
+      visited: [],
+    };
   }
 
   const arr = (v) => (Array.isArray(v) ? v.filter((x) => typeof x === 'string') : []);
@@ -228,13 +240,12 @@
       <section class="stack">
         <div>
           <h2>Who’s joining you?</h2>
-          <p class="muted small">Add the people you’re eating with. We’ll find places that work for everyone.</p>
         </div>
         ${friends.length ? `<div class="card list">${friends.map(dinerRow).join('')}</div>` : ''}
+        <div id="nearby" class="stack" hidden></div>
         <div class="add-grid">
           <button data-action="add-here">Add someone here<span class="hint">They take the quiz on this phone</span></button>
           <button data-action="show-import">Paste a friend’s code<span class="hint">From their own phone</span></button>
-          ${DEMO_ONLY && !friends.some((p) => p.example) ? `<button data-action="add-examples">Add example friends<span class="hint">To try out group picks</span></button>` : ''}
         </div>
         <div id="import" class="card stack" hidden>
           <label for="import-code"><strong>Paste a friend’s Foodie code</strong></label>
@@ -252,6 +263,7 @@
           ${joining.length ? `Find a table for ${joining.length + 1}` : 'Just me. Show my picks'}
         </button>
       </div>`;
+    renderNearby();
   }
 
   function renderQuiz() {
@@ -544,6 +556,7 @@
     const wasNewFriend = !state.quiz.owner && !state.quiz.editingId;
     state.quiz = null;
     state.accountDraft = null;
+    syncPresence();
     if (wasNewOwner) state.justFinished = profile.id;
     if (wasNewFriend) toast(`${profile.name} is joining you`);
     go('table');
@@ -625,7 +638,11 @@
     if (!text) return;
     state.lastQuery = text;
     const zip = text.match(/^\d{5}$/) ? REGION.zips[text] : null;
-    if (zip) return findAt({ lat: zip[0], lon: zip[1], label: `${zip[2]} (${text})` });
+    if (zip) {
+      state.myTown = zip[2];
+      syncPresence();
+      return findAt({ lat: zip[0], lon: zip[1], label: `${zip[2]} (${text})` });
+    }
     if (DEMO_ONLY) {
       state.status = {
         kind: 'error',
@@ -646,6 +663,96 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Nearby with the app open (live presence, where the host offers a shared room)
+  // ---------------------------------------------------------------------------
+
+  const live = { room: null, peers: [] };
+
+  // What others see: your first name, taste answers and last ZIP town. Never coordinates.
+  function myPresence() {
+    const me = owner();
+    if (!me) return { profile: null, town: null };
+    const { favorites, ...profile } = Object.fromEntries(SHARE_FIELDS.map((k) => [k, me[k] ?? null]));
+    return { profile, town: state.myTown || null };
+  }
+
+  function syncPresence() {
+    live.room?.presence(myPresence()).catch(() => {});
+  }
+
+  async function connectRoom() {
+    if (!window.claude?.use) return; // running as a plain web page: no shared room
+    const room = await window.claude.use('room').catch(() => null);
+    if (!room) return;
+    live.room = room;
+    syncPresence();
+    room.onPeers(
+      ({ peers }) => {
+        live.peers = peers
+          .filter((p) => !p.isMe && p.kind === 'viewer')
+          .map((p) => ({ peer: p.peer, town: typeof p.presence?.town === 'string' ? p.presence.town.slice(0, 40) : null, profile: normalizeShared(p.presence?.profile) }))
+          .filter((p) => p.profile);
+        refreshLinkedFriends();
+        renderNearby();
+      },
+      () => {
+        live.room = null;
+        live.peers = [];
+        renderNearby();
+      },
+    );
+  }
+
+  /** Keep added nearby diners current if they update their answers. */
+  function refreshLinkedFriends() {
+    let changed = false;
+    for (const p of live.peers) {
+      const friend = state.profiles.find((f) => f.peer === p.peer);
+      if (!friend) continue;
+      const next = { ...friend, ...p.profile, id: friend.id, peer: p.peer, favorites: friend.favorites, visited: friend.visited };
+      if (JSON.stringify(next) !== JSON.stringify(friend)) {
+        Object.assign(friend, next);
+        changed = true;
+      }
+    }
+    if (changed) {
+      saveProfiles();
+      if (state.view === 'table') render();
+    }
+  }
+
+  function renderNearby() {
+    const el = document.getElementById('nearby');
+    if (!el) return;
+    if (!live.room || !owner()) {
+      el.hidden = true;
+      return;
+    }
+    el.hidden = false;
+    const myTown = state.myTown;
+    const peers = [...live.peers].sort((a, b) => (b.town === myTown) - (a.town === myTown) || a.profile.name.localeCompare(b.profile.name));
+    const row = (p) => {
+      const added = state.profiles.some((f) => f.peer === p.peer);
+      return `
+        <div class="diner">
+          <span class="dot" aria-hidden="true"></span>
+          <div class="who">
+            <strong>${esc(p.profile.name)}</strong>${p.town ? ` <span class="small muted">· ${esc(p.town)}</span>` : ''}
+            <div>${profileChips(p.profile)}</div>
+          </div>
+          ${added
+            ? '<span class="small muted joined">Joining</span>'
+            : `<button class="small" data-action="add-nearby" data-peer="${esc(p.peer)}">Add</button>`}
+        </div>`;
+    };
+    el.innerHTML = `
+      <h3 class="eyebrow">Nearby with the app open</h3>
+      ${peers.length
+        ? `<div class="card list">${peers.map(row).join('')}</div>`
+        : '<p class="small muted">No one else here yet. Share Foodie and they’ll show up.</p>'}`;
+  }
+
+  // ---------------------------------------------------------------------------
   // Events
   // ---------------------------------------------------------------------------
 
@@ -656,13 +763,14 @@
     },
     'to-account': () => go('account'),
     'add-here': () => startQuiz(null),
-    'add-examples': () => {
-      for (const ex of REGION.sampleDiners || []) {
-        const p = { ...structuredClone(ex), id: newId(), example: true };
-        state.profiles.push(p);
-        state.selected.add(p.id);
-      }
+    'add-nearby': (el) => {
+      const p = live.peers.find((x) => x.peer === el.dataset.peer);
+      if (!p || state.profiles.some((f) => f.peer === p.peer)) return;
+      const friend = { ...p.profile, id: newId(), peer: p.peer };
+      state.profiles.push(friend);
+      state.selected.add(friend.id);
       saveProfiles();
+      toast(`${friend.name} is joining you`);
       render();
     },
     reset: () => {
@@ -674,6 +782,7 @@
       state.profiles = [];
       state.selected.clear();
       saveProfiles();
+      syncPresence();
       go('welcome');
     },
     toggle: (el) => {
@@ -769,4 +878,5 @@
   });
 
   render();
+  connectRoom();
 })();
