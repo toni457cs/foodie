@@ -267,6 +267,7 @@
       <div class="actionbar stacked">
         <button class="primary block" data-action="auth-start" data-mode="login">Login/Sign Up</button>
         <button class="ghost block" data-action="continue-guest">Continue as guest</button>
+        <button class="ghost block" data-action="open-join">Join a group</button>
       </div>`;
   }
 
@@ -485,6 +486,7 @@
     const draft = state.accountDraft || {};
     $app.innerHTML = `
       <form id="account-form" class="stack" novalidate>
+        ${state.pendingJoin ? `<p class="eyebrow">Joining ${esc(state.pendingJoin.name)}’s table</p>` : ''}
         <h1><label for="acct-name">Choose a username</label></h1>
         <input type="text" id="acct-name" maxlength="40" autocomplete="username" placeholder="Username" aria-describedby="acct-note" value="${esc(draft.name || '')}" />
         <p id="acct-note" class="small muted">Don’t use your full name.</p>
@@ -959,12 +961,12 @@
   /** Your code, front and center, so anyone (guests too) can share it with the group. */
   function myCodeRow(me) {
     if (!signedIn() && shared.db && !shared.code) {
-      return `<div class="mycode"><span class="small muted">Share a code so friends can join you. Guest codes last ${GUEST_CODE_HOURS} hours.</span>
+      return `<div class="mycode"><span class="small muted">Get a join code so friends can join your table. Guest codes last ${GUEST_CODE_HOURS} hours.</span>
         <button class="small" data-action="get-code">Get a code</button></div>`;
     }
     if (shared.code) {
       return `<div class="mycode">
-        <span class="small muted">Your code</span>
+        <span class="small muted">Join code</span>
         <strong id="share-code-text">${esc(shared.code.slice(0, 3))} ${esc(shared.code.slice(3))}</strong>
         <button class="small" data-action="copy-code" data-id="${me.id}">Copy</button>
       </div>`;
@@ -997,17 +999,15 @@
           <h2>Who’s joining you?</h2>
         </div>
         ${myCodeRow(me)}
+        ${live.room && shared.db
+          ? `<button class="switch" role="switch" aria-checked="${!!state.openTable}" data-action="toggle-open-table"><span>Let people nearby join</span><span class="knob" aria-hidden="true"></span></button>`
+          : ''}
         ${tableFriendsHtml()}
         ${friends.length ? `<div class="card list">${friends.map(dinerRow).join('')}</div>` : ''}
         <div id="nearby" class="stack" hidden></div>
         <div class="add-grid">
           <button data-action="add-here">Add someone here<span class="hint">They take the quiz on this phone</span></button>
-          <button data-action="show-import">Enter a friend’s code<span class="hint">From their own phone</span></button>
-        </div>
-        <div id="import" class="card stack" hidden>
-          <label for="import-code"><strong>Friend’s code</strong></label>
-          <input type="text" id="import-code" inputmode="numeric" autocomplete="off" placeholder="6-digit code" />
-          <div class="row"><button class="primary" data-action="import">Add to the table</button></div>
+          <button data-action="open-join">Join a friend’s table<span class="hint">With a join code or nearby</span></button>
         </div>
       </section>
 
@@ -1118,7 +1118,7 @@
     $app.innerHTML = `
       <section class="stack">
         <h1>${p.owner ? 'Your code' : `${esc(p.name)}’s code`}</h1>
-        <p class="muted">Friends enter it under “Enter a friend’s code”.</p>
+        <p class="muted">Friends enter it under “Join a friend’s table”.</p>
         <div class="card stack">
           ${short
             ? `<p class="bigcode" id="share-code-text">${esc(short.slice(0, 3))} ${esc(short.slice(3))}</p>`
@@ -1266,6 +1266,7 @@
       settings: renderSettings,
       preview: renderPreview,
       person: renderPerson,
+      join: renderJoin,
     };
     views[state.view]();
     renderTopbar();
@@ -1378,6 +1379,8 @@
     publishShortCode();
     if (wasNewOwner) state.justFinished = profile.id;
     if (wasNewFriend) toast(`${profile.name} is joining you`);
+    if (profile.owner && state.pendingJoin) return completeJoin();
+    if (profile.owner) sendJoin(); // keep the table you joined up to date
     go('table');
   }
 
@@ -1485,13 +1488,20 @@
       startSocial();
     } else {
       unpublishShortCode(); // signed out: clear anything an earlier session left shared
+      if (!state.auth) leaveJoin();
     }
+    if (state.joinedCode && owner()) sendJoin();
   }
 
   /** Take your profile out of the shared store (signing out, deleting, or a stale guest entry). */
   async function unpublishShortCode() {
     shared.code = null;
     shared.guestCodeOk = false;
+    stopJoins();
+    if (state.openTable) {
+      state.openTable = false;
+      syncPresence();
+    }
     if (!shared.db || !shared.uid) return;
     try {
       const mine = await shared.db.doc(`codes/${shared.uid}`).get();
@@ -1521,6 +1531,7 @@
       const guest = !signedIn();
       await shared.db.doc(`codes/${shared.uid}`).set({ code, profile, card: guest ? null : publicCard(me), guest, updatedAt: Date.now() });
       shared.code = code;
+      watchJoins();
       if (!guest && me.shortCode !== code) {
         me.shortCode = code; // keep the same digits across sign-ins
         saveProfiles();
@@ -1560,7 +1571,7 @@
     started: false,
     mine: { uids: [], declined: [] },
     listsMe: new Set(),
-    // Previews only: Priya (test) has sent you a request, and test users accept yours.
+    // Previews only: priya_eats (a test user) has sent you a request, and test users accept yours.
     testListsMe: new Set(DEMO_ONLY ? ['test-priya'] : []),
     people: {},
   };
@@ -1762,15 +1773,17 @@
   // Nearby with the app open (live presence, where the host offers a shared room)
   // ---------------------------------------------------------------------------
 
-  const live = { room: null, peers: [] };
+  const live = { room: null, peers: [], tables: [] };
 
   // Only public profiles appear under Nearby: first name, taste answers, last ZIP town and the
   // visible parts of the profile card (no images). Never coordinates.
   function myPresence() {
     const me = owner();
-    if (!me || !signedIn() || visibility(me) !== 'public') return { profile: null, town: null, card: null };
+    // "Let people nearby join": your username and join code, nothing else, until you turn it off.
+    const table = me && state.openTable && shared.code ? { name: me.name, code: shared.code } : null;
+    if (!me || !signedIn() || visibility(me) !== 'public') return { profile: null, town: null, card: null, table };
     const { favorites, ...profile } = Object.fromEntries(SHARE_FIELDS.map((k) => [k, me[k] ?? null]));
-    return { profile, town: state.myTown || null, card: publicCard(me, { images: false, maxFavorites: 6 }) };
+    return { profile, town: state.myTown || null, card: publicCard(me, { images: false, maxFavorites: 6 }), table };
   }
 
   function syncPresence() {
@@ -1785,8 +1798,13 @@
     syncPresence();
     room.onPeers(
       ({ peers }) => {
-        live.peers = peers
-          .filter((p) => !p.isMe && p.kind === 'viewer')
+        const others = peers.filter((p) => !p.isMe && p.kind === 'viewer');
+        live.tables = others
+          .map((p) => p.presence?.table)
+          .filter((t) => t && typeof t.name === 'string' && t.name.trim() && /^\d{6}$/.test(t.code) && t.code !== shared.code)
+          .map((t) => ({ name: t.name.trim().slice(0, 40), code: t.code }));
+        if (state.view === 'join' && !document.activeElement?.matches('input')) render();
+        live.peers = others
           .map((p) => ({
             peer: p.peer,
             uid: p.by || null,
@@ -1801,6 +1819,7 @@
       () => {
         live.room = null;
         live.peers = [];
+        live.tables = [];
         renderNearby();
       },
     );
@@ -1842,7 +1861,7 @@
         <div class="diner">
           <span class="dot" aria-hidden="true"></span>
           <div class="who">
-            <strong>${esc(p.profile.name)}</strong>${p.town ? ` <span class="small muted">· ${esc(p.town)}</span>` : ''}
+            <strong>${esc(p.profile.name)}</strong>${p.town ? ` <span class="small muted">· ${esc(p.town)}</span>` : ''}${p.example ? ' <span class="tag">example</span>' : ''}
             <div class="small muted">${esc(profileSummary(p.profile))}</div>
           </div>
           <div class="actions">
@@ -1869,6 +1888,162 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Joining a table: enter someone's join code (or tap their table under Tables nearby) and
+  // you're both at the same table. You write joins/<your id> (only you can) with their code
+  // and your taste answers; their phone adds you. A join lasts 12 hours.
+  // ---------------------------------------------------------------------------
+
+  const JOINED_KEY = 'foodie.joined';
+  const JOIN_HOURS = 12;
+  const joins = { code: null, stop: null };
+  state.joinedCode = loadJSON('sessionStorage', JOINED_KEY);
+
+  /** Open tables nearby, plus two example tables in previews. */
+  function nearbyTables() {
+    const examples = DEMO_ONLY
+      ? (REGION.testUsers || []).filter((t) => t.card).map((t) => ({ name: t.profile.name, town: t.town, peer: t.peer }))
+      : [];
+    return [...(live.tables || []), ...examples];
+  }
+
+  function exampleHost(peer) {
+    const t = (REGION.testUsers || []).find((x) => x.peer === peer);
+    return t && { ...normalizeShared(t.profile), id: newId(), peer: t.peer, uid: t.peer, card: normalizeCard(t.card) };
+  }
+
+  function renderJoin() {
+    const tables = nearbyTables();
+    const row = (t) => `
+      <div class="diner">
+        <span class="dot" aria-hidden="true"></span>
+        <div class="who"><strong>${esc(t.name)}’s table</strong>${t.town ? ` <span class="small muted">· ${esc(t.town)}</span>` : ''}${t.peer ? ' <span class="tag">example</span>' : ''}</div>
+        ${t.code && t.code === state.joinedCode
+          ? '<span class="small muted joined">Joined</span>'
+          : `<button class="small" data-action="join-nearby" ${t.peer ? `data-peer="${esc(t.peer)}"` : `data-code="${esc(t.code)}"`}>Join</button>`}
+      </div>`;
+    $app.innerHTML = `
+      <section class="stack">
+        <h1>Join a table</h1>
+        <form class="stack" data-form="join" novalidate>
+          <label for="join-code"><strong>Join code</strong></label>
+          <input type="text" id="join-code" inputmode="numeric" autocomplete="off" placeholder="6-digit code" />
+          <p class="small muted">Ask whoever started the table for their code.</p>
+          <div><button class="primary" type="submit">Join</button></div>
+        </form>
+      </section>
+      <section class="stack">
+        <h2 class="eyebrow">Tables nearby</h2>
+        ${tables.length
+          ? `<div class="card list">${tables.map(row).join('')}</div>`
+          : '<p class="small muted">No open tables nearby right now. A join code works from anywhere.</p>'}
+      </section>
+      <div class="actionbar">
+        <button class="ghost" data-action="join-back">← Back</button>
+      </div>`;
+  }
+
+  /** Sit at someone's table: they join yours on this phone, and you join theirs on their phone. */
+  async function joinTable(host, { send = true } = {}) {
+    if (!host) return;
+    if (!owner()) {
+      // New here: a username and the quick quiz first, then you're seated.
+      state.pendingJoin = { ...host, send };
+      if (!state.auth) {
+        state.auth = { guest: true };
+        saveJSON('sessionStorage', GUEST_KEY, state.auth);
+      }
+      return go('account');
+    }
+    state.pendingJoin = { ...host, send };
+    completeJoin();
+  }
+
+  function completeJoin() {
+    const { send, ...host } = state.pendingJoin;
+    state.pendingJoin = null;
+    const same = (p) => (host.uid && p.uid === host.uid) || (host.peer && p.peer === host.peer);
+    let seat = state.profiles.find((p) => !p.owner && same(p));
+    if (!seat) {
+      seat = host;
+      state.profiles.push(seat);
+    }
+    state.selected.add(seat.id);
+    saveProfiles();
+    if (send && host.code) {
+      state.joinedCode = host.code;
+      saveJSON('sessionStorage', JOINED_KEY, host.code);
+      sendJoin();
+    }
+    go('table');
+    toast(`You’re at ${host.name}’s table`);
+  }
+
+  async function sendJoin() {
+    const me = owner();
+    if (!shared.db || !shared.uid || !me || !state.joinedCode) return;
+    const { favorites, ...profile } = Object.fromEntries(SHARE_FIELDS.map((k) => [k, me[k] ?? null]));
+    try {
+      await shared.db.doc(`joins/${shared.uid}`).set({ code: state.joinedCode, profile, at: Date.now() });
+    } catch {
+      toast('Couldn’t reach their table just now. They can add you with your code.');
+    }
+  }
+
+  /** Leave the table you joined (signing out, deleting the session, or a stale entry). */
+  async function leaveJoin() {
+    state.joinedCode = null;
+    saveJSON('sessionStorage', JOINED_KEY, null);
+    if (!shared.db || !shared.uid) return;
+    try {
+      const mine = await shared.db.doc(`joins/${shared.uid}`).get();
+      if (mine.exists && mine.data().profile) await shared.db.doc(`joins/${shared.uid}`).set({ code: null, profile: null, at: Date.now() });
+    } catch {
+      /* it expires on its own */
+    }
+  }
+
+  /** Your side: anyone who joins with your code is added to your table. */
+  function watchJoins() {
+    if (!shared.db || !shared.code || joins.code === shared.code) return;
+    stopJoins();
+    joins.code = shared.code;
+    try {
+      const stop = shared.db
+        .collection('joins')
+        .where('code', '==', shared.code)
+        .onSnapshot((snap) => snap.docs.forEach((d) => addJoiner(d.id, d.data())), () => {});
+      joins.stop = typeof stop === 'function' ? stop : null;
+    } catch {
+      joins.code = null;
+    }
+  }
+
+  function stopJoins() {
+    joins.stop?.();
+    joins.stop = null;
+    joins.code = null;
+  }
+
+  function addJoiner(uid, d) {
+    if (!owner() || uid === shared.uid || !d || d.code !== shared.code) return;
+    if (!(Date.now() - (d.at || 0) < JOIN_HOURS * 3600000)) return;
+    const profile = normalizeShared(d.profile);
+    if (!profile) return;
+    const known = state.profiles.find((p) => !p.owner && p.uid === uid);
+    if (known && (known.joinedAt || 0) >= d.at) return;
+    if (known) {
+      Object.assign(known, profile, { id: known.id, uid, joinedAt: d.at, favorites: known.favorites, visited: known.visited });
+    } else {
+      const seat = { ...profile, id: newId(), uid, joinedAt: d.at };
+      state.profiles.push(seat);
+      state.selected.add(seat.id);
+      toast(`${profile.name} joined your table`);
+    }
+    saveProfiles();
+    if (['table', 'group'].includes(state.view) && !document.activeElement?.matches('input, textarea')) render();
+  }
+
+  // ---------------------------------------------------------------------------
   // Events
   // ---------------------------------------------------------------------------
 
@@ -1878,6 +2053,30 @@
       go(homeView());
     },
     'to-account': () => go('account'),
+    'open-join': () => go('join'),
+    'join-nearby': async (el) => {
+      if (el.dataset.peer) return joinTable(exampleHost(el.dataset.peer), { send: false });
+      try {
+        await joinTable(await lookupShortCode(el.dataset.code));
+      } catch (err) {
+        toast(err.message);
+      }
+    },
+    'join-back': () => {
+      state.pendingJoin = null;
+      go(owner() ? 'table' : 'welcome');
+    },
+    'toggle-open-table': async () => {
+      if (!state.openTable && !shared.code) {
+        shared.guestCodeOk = true;
+        await publishShortCode();
+        if (!shared.code) return toast('Couldn’t make a code just now. Try again in a moment.');
+      }
+      state.openTable = !state.openTable;
+      syncPresence();
+      render();
+      toast(state.openTable ? 'People nearby can join your table' : 'Your table is hidden from Nearby');
+    },
     'continue-guest': () => {
       state.auth = { guest: true };
       saveJSON('sessionStorage', GUEST_KEY, state.auth);
@@ -1910,6 +2109,7 @@
       state.quiz = null;
       state.outcome = null;
       unpublishShortCode(); // nothing about you stays shared while you're signed out
+      leaveJoin();
       syncPresence();
       go('welcome');
       toast('Signed out');
@@ -2148,6 +2348,7 @@
       saveJSON('sessionStorage', GUEST_KEY, null);
       registerSelf({ usernameKey: null, emailHash: null });
       unpublishShortCode();
+      leaveJoin();
       state.quiz = null;
       saveQuizDraft();
       saveJSON('sessionStorage', HIDDEN_KEY, null);
@@ -2180,24 +2381,6 @@
       go('share');
     },
     'copy-code': (el) => copyCode(el.dataset.id),
-    'show-import': () => {
-      const box = document.getElementById('import');
-      box.hidden = !box.hidden;
-      if (!box.hidden) document.getElementById('import-code').focus();
-    },
-    import: async () => {
-      const raw = document.getElementById('import-code').value.replace(/\s+/g, '');
-      try {
-        const p = /^\d{6}$/.test(raw) ? await lookupShortCode(raw) : fromCode(raw);
-        state.profiles.push(p);
-        state.selected.add(p.id);
-        saveProfiles();
-        toast(`${p.name} is joining you`);
-        render();
-      } catch (err) {
-        toast(err.message);
-      }
-    },
     answer: (el) => answer(el.dataset.value),
     'quiz-next': quizNext,
     'quiz-back': quizBack,
@@ -2318,6 +2501,18 @@
     if (fn) fn(el);
   });
   const FORMS = {
+    join: async () => {
+      const input = document.getElementById('join-code');
+      const raw = input.value.replace(/\s+/g, '');
+      if (!raw) return toast('Enter the 6-digit join code.');
+      try {
+        const host = /^\d{6}$/.test(raw) ? await lookupShortCode(raw) : fromCode(raw);
+        input.blur();
+        await joinTable(host, { send: !!host.code });
+      } catch (err) {
+        toast(/^\d+$/.test(raw) && raw.length !== 6 ? 'Join codes have 6 digits.' : err.message);
+      }
+    },
     'connect-code': async () => {
       const raw = document.getElementById('friend-code').value.replace(/\s+/g, '');
       if (!/^\d{6}$/.test(raw)) return toast('Enter the 6 digits of your friend’s code.');

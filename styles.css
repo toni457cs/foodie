@@ -280,7 +280,7 @@ input[type="password"] {
 
 /* Short friend code */
 .bigcode { margin: 4px 0; font: 500 2.6rem/1 var(--font-display); letter-spacing: 0.12em; text-align: center; font-variant-numeric: tabular-nums; user-select: all; }
-#import-code { letter-spacing: 0.15em; }
+#join-code { letter-spacing: 0.15em; }
 
 /* Your code on the table screen */
 .mycode { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 14px; background: var(--accent-soft); }
@@ -422,3 +422,6 @@ label.btn { cursor: pointer; }
   .me-btn { min-width: 44px; }
   .person-icon { width: 28px; height: 28px; }
 }
+
+/* Small label beside example (test) users and tables */
+.tag { display: inline-block; margin-left: 4px; padding: 0 8px; border-radius: 999px; background: var(--surface-2); color: var(--text); font-size: 12px; line-height: 20px; vertical-align: 1px; }

@@ -161,17 +161,17 @@
     zips: ZIPS,
     // Example test users listed under "Nearby with the app open" in previews.
     testUsers: [
-      { peer: 'test-priya', town: 'Folsom', profile: { name: 'Priya (test)', cuisines: ['cafe', 'mediterranean'], novelty: 'new',
+      { peer: 'test-priya', town: 'Folsom', profile: { name: 'priya_eats', cuisines: ['cafe', 'mediterranean'], novelty: 'new',
         noise: 'buzz', dealbreakers: [], maxWait: 30, diningWith: 'friends', vibes: ['design', 'local'] },
-        card: { name: 'Priya (test)', visibility: 'public', tastes: { cuisines: ['cafe', 'mediterranean'], noise: 'buzz', vibes: ['design', 'local'], diningWith: 'friends' },
+        card: { name: 'priya_eats', visibility: 'public', tastes: { cuisines: ['cafe', 'mediterranean'], noise: 'buzz', vibes: ['design', 'local'], diningWith: 'friends' },
         genres: ['cafe', 'mediterranean'], favorites: [{ name: "Catherine's Crêperie", town: 'Folsom', cuisine: ['cafe', 'brunch'], stars: 5 }, { name: 'Petra Greek', town: 'Folsom', cuisine: ['mediterranean'], stars: 4 }] } },
-      { peer: 'test-marcus', town: 'Roseville', profile: { name: 'Marcus (test)', cuisines: ['any'], novelty: 'favorites',
+      { peer: 'test-marcus', town: 'Roseville', profile: { name: 'marcus_r', cuisines: ['any'], novelty: 'favorites',
         noise: 'buzz', dealbreakers: ['no_parking'], maxWait: 15, diningWith: 'friends', vibes: ['views', 'patio'] } },
-      { peer: 'test-jules', town: 'Midtown Sacramento', profile: { name: 'Jules (test)', cuisines: ['mexican', 'steak'], novelty: 'new',
+      { peer: 'test-jules', town: 'Midtown Sacramento', profile: { name: 'jules.tacos', cuisines: ['mexican', 'steak'], novelty: 'new',
         noise: 'high', dealbreakers: [], maxWait: 30, diningWith: 'friends', vibes: ['live_music'] },
-        card: { name: 'Jules (test)', visibility: 'public', tastes: { cuisines: ['mexican', 'steak'], noise: 'high', vibes: ['live_music'], diningWith: 'friends' },
+        card: { name: 'jules.tacos', visibility: 'public', tastes: { cuisines: ['mexican', 'steak'], noise: 'high', vibes: ['live_music'], diningWith: 'friends' },
         genres: ['mexican'], favorites: [{ name: 'Tank House BBQ', town: 'Sacramento', cuisine: ['steak', 'american'] }] } },
-      { peer: 'test-sam', town: 'Elk Grove', profile: { name: 'Sam (test)', cuisines: ['japanese', 'thai'], novelty: 'favorites',
+      { peer: 'test-sam', town: 'Elk Grove', profile: { name: 'sam_noodles', cuisines: ['japanese', 'thai'], novelty: 'favorites',
         noise: 'quiet', dealbreakers: ['loud', 'pricey'], maxWait: 15, diningWith: 'friends', vibes: ['cozy'] } },
     ],
     restaurants: [
