@@ -1286,6 +1286,7 @@
       preview: renderPreview,
       person: renderPerson,
       join: renderJoin,
+      'join-how': renderJoinHow,
     };
     views[state.view]();
     renderTopbar();
@@ -1820,17 +1821,30 @@
     document.getElementById('join-code').focus();
   }
 
+  function renderJoinHow() {
+    const host = state.pendingJoin;
+    if (!host) return go('join');
+    $app.innerHTML = `
+      <section class="hero welcome">
+        <p class="eyebrow">Joining ${esc(host.name)}’s table</p>
+        <h1>How would you like to join?</h1>
+        <div class="welcome-actions">
+          <button class="primary" data-action="join-auth">Login/Sign Up</button>
+          <button data-action="join-guest">Continue as guest</button>
+          <p class="small muted">In a hurry? Join as a guest and log in later. Your answers come with you.</p>
+          <button class="ghost" data-action="open-join">← Back</button>
+        </div>
+      </section>`;
+  }
+
   /** Sit at someone's table: they join yours on this phone, and you join theirs on their phone. */
   async function joinTable(host, { send = true } = {}) {
     if (!host) return;
     if (!owner()) {
-      // New here: a username and the quick quiz first, then you're seated.
+      // New here: log in, sign up or continue as a guest, then a username and the quick quiz,
+      // then you're seated.
       state.pendingJoin = { ...host, send };
-      if (!state.auth) {
-        state.auth = { guest: true };
-        saveJSON('sessionStorage', GUEST_KEY, state.auth);
-      }
-      return go('account');
+      return go(signedIn() ? 'account' : 'join-how');
     }
     state.pendingJoin = { ...host, send };
     completeJoin();
@@ -1936,6 +1950,17 @@
     },
     'to-account': () => go('account'),
     'open-join': () => go('join'),
+    'join-auth': () =>
+      startAuth('login', () => {
+        if (!signedIn()) return go('join-how'); // backed out of logging in
+        if (owner()) return completeJoin(); // this account already has a profile: sit right down
+        go('account');
+      }),
+    'join-guest': () => {
+      state.auth = { guest: true };
+      saveJSON('sessionStorage', GUEST_KEY, state.auth);
+      go('account');
+    },
     'demo-code': () => {
       const input = document.getElementById('join-code');
       input.value = '012 345';
