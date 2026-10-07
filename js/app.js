@@ -19,6 +19,8 @@
 
   const STORAGE_KEY = 'foodie.profiles.v1';
   const AUTH_KEY = 'foodie.auth.v1'; // prototype sign-in state: email + 2FA flag, never a password
+  const GUEST_KEY = 'foodie.guest.v1'; // "continue as guest", for this tab only
+  const GUEST_CODE_HOURS = 12; // a guest's code stops working after this
   const HIDDEN_KEY = 'foodie.hidden'; // places swiped away this session
   const QUIZ_KEY = 'foodie.quizdraft.v1'; // quiz answers in progress, so nothing is lost mid-quiz
   const PASSED_KEY = 'foodie.passed'; // their cuisines, which lower similar matches this session
@@ -27,7 +29,7 @@
 
   const state = {
     view: 'welcome',
-    profiles: loadProfiles(),
+    profiles: [], // loaded below, from this account's storage or this tab's guest session
     selected: new Set(),
     quiz: null, // { step, answers, editingId }
     location: null, // { lat, lon, label, demo }
@@ -37,19 +39,36 @@
     accountDraft: null,
     shareId: null,
     justFinished: null,
-    auth: loadJSON('localStorage', AUTH_KEY), // null = not chosen yet; {guest: true} or {email, twoFactor}
+    // Accounts stay logged in on this device; guests last only as long as this tab.
+    auth: (() => {
+      const saved = loadJSON('localStorage', AUTH_KEY);
+      return saved?.email ? saved : loadJSON('sessionStorage', GUEST_KEY);
+    })(),
     hidden: new Set(loadJSON('sessionStorage', HIDDEN_KEY) || []),
     passed: loadJSON('sessionStorage', PASSED_KEY) || {}, // cuisine → swipes this session
     authFlow: null, // { mode: 'login'|'signup', step: 'form'|'code', email, code, twoFactor, next }
   };
+  // Older versions kept every profile on the device, logged in or not. Move an account's
+  // profile under its account; drop anything left over from guests.
+  (() => {
+    let legacy = null;
+    try {
+      legacy = JSON.parse(localStorage.getItem(STORAGE_KEY));
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(QUIZ_KEY);
+    } catch {
+      /* storage blocked */
+    }
+    if (state.auth?.email && Array.isArray(legacy) && !loadJSON('localStorage', profileKey())) {
+      saveJSON('localStorage', profileKey(), legacy);
+    }
+  })();
+  state.profiles = loadProfiles();
   state.profiles.forEach((p) => state.selected.add(p.id));
-  if (state.profiles.some((p) => p.owner)) {
-    state.view = 'table';
-    if (!state.auth) state.auth = { guest: true };
-  }
+  if (state.profiles.some((p) => p.owner)) state.view = 'table';
   // Pick up a quiz that was in progress (after a reload, or coming back later).
   (() => {
-    const draft = loadJSON('localStorage', QUIZ_KEY);
+    const draft = loadJSON(profileStore(), quizKey());
     if (!draft || !Array.isArray(draft.stepIds) || !draft.answers) return;
     const steps = draft.stepIds.map((id) => QUIZ.find((q) => q.id === id)).filter(Boolean);
     if (!steps.length) return;
@@ -62,9 +81,20 @@
   // Storage & share codes
   // ---------------------------------------------------------------------------
 
+  // Where this person's data lives: under their account on this device, or (guests) this tab only.
+  function profileStore() {
+    return state?.auth?.email ? 'localStorage' : 'sessionStorage';
+  }
+  function profileKey() {
+    return state?.auth?.email ? `${STORAGE_KEY}:${state.auth.email.toLowerCase()}` : `${STORAGE_KEY}:guest`;
+  }
+  function quizKey() {
+    return state?.auth?.email ? `${QUIZ_KEY}:${state.auth.email.toLowerCase()}` : `${QUIZ_KEY}:guest`;
+  }
+
   function loadProfiles() {
     try {
-      const raw = JSON.parse(localStorage.getItem(STORAGE_KEY));
+      const raw = loadJSON(profileStore(), profileKey());
       if (!Array.isArray(raw)) return [];
       // Dealbreakers can be retired between versions; drop any we no longer offer.
       // (Runs before the helpers below exist, so no arr() here.)
@@ -100,7 +130,7 @@
   /** Returns false when storage refused the write (full, or blocked). */
   function saveProfiles() {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state.profiles));
+      window[profileStore()].setItem(profileKey(), JSON.stringify(state.profiles));
       return true;
     } catch {
       return false; // private mode etc.: app still works for this session
@@ -281,8 +311,15 @@
     return (reg[field] || {})[value] || null;
   }
 
-  /** Record (or clear, with null) your username key and email hash. */
-  async function registerSelf(patch) {
+  /** Record (or clear, with null) your username key and email hash. Saves run one at a time,
+   *  so two quick updates can't overwrite each other. */
+  let registryQueue = Promise.resolve();
+  function registerSelf(patch) {
+    registryQueue = registryQueue.then(() => writeRegistry(patch));
+    return registryQueue;
+  }
+
+  async function writeRegistry(patch) {
     try {
       if (shared.db) {
         const ref = shared.db.doc(`accounts/${shared.uid}`);
@@ -401,9 +438,37 @@
 
   function finishAuth() {
     const f = state.authFlow;
+    const guestProfiles = state.profiles;
+    const guestQuiz = state.quiz;
+    saveJSON('sessionStorage', `${STORAGE_KEY}:guest`, null); // the guest session ends here
+    saveJSON('sessionStorage', `${QUIZ_KEY}:guest`, null);
+    saveJSON('sessionStorage', GUEST_KEY, null);
     state.auth = { email: f.email, twoFactor: f.twoFactor, prototype: true };
-    if (f.claim) registerSelf({ emailHash: f.hash });
     saveJSON('localStorage', AUTH_KEY, state.auth);
+    const saved = loadProfiles();
+    const savedOwner = saved.find((p) => p.owner);
+    if (savedOwner) {
+      // This account already has a profile: open it, and keep friends added this session.
+      state.profiles = [...saved, ...guestProfiles.filter((p) => !p.owner && !saved.some((s) => s.id === p.id))];
+      if (guestQuiz?.owner) {
+        // Answers in progress now update the account's profile instead of making a second one.
+        guestQuiz.editingId = savedOwner.id;
+        guestQuiz.isNew = false;
+        guestQuiz.answers = { ...savedOwner, ...guestQuiz.answers, id: savedOwner.id, name: savedOwner.name, owner: true };
+      }
+    } else {
+      state.profiles = guestProfiles; // a new account starts from what you did as a guest
+    }
+    state.selected = new Set(state.profiles.map((p) => p.id));
+    saveProfiles();
+    registerSelf({
+      ...(f.claim ? { emailHash: f.hash } : {}),
+      ...(owner() ? { usernameKey: usernameKey(owner().name) } : {}),
+    });
+    shared.code = owner()?.shortCode || null;
+    publishShortCode();
+    startSocial();
+    syncPresence();
     state.authFlow = null;
     const msg = `${f.mode === 'signup' ? 'Account created' : 'Logged in'}${f.twoFactor ? ' with two-factor on' : ''}`;
     if (f.next) {
@@ -446,7 +511,7 @@
         error.hidden = false;
         return;
       }
-      registerSelf({ usernameKey: usernameKey(name) });
+      if (signedIn()) registerSelf({ usernameKey: usernameKey(name) });
       startQuiz({ id: newId(), owner: true, name, cuisines: [], dealbreakers: [], vibes: [], favorites: [], visited: [] }, { skipName: true, isNew: true });
     });
   }
@@ -805,7 +870,7 @@
     const area = document.getElementById('me-area');
     if (!area) return;
     const current = ['profile', 'settings', 'preview'].includes(state.view) ? 'aria-current="page"' : '';
-    const requests = shared.uid ? socialLists().incoming.length : 0;
+    const requests = shared.uid && signedIn() ? socialLists().incoming.length : 0;
     const profileBtn = `<button class="me-btn" data-action="open-profile" aria-label="Your profile${requests ? `, ${requests} friend request${requests > 1 ? 's' : ''}` : ''}" ${current}>${PERSON_ICON}${requests ? '<span class="req-dot" aria-hidden="true"></span>' : ''}</button>`;
     if (signedIn()) {
       area.innerHTML = `<button class="signin-link" data-action="log-out">Sign Out</button>${profileBtn}`;
@@ -893,6 +958,10 @@
 
   /** Your code, front and center, so anyone (guests too) can share it with the group. */
   function myCodeRow(me) {
+    if (!signedIn() && shared.db && !shared.code) {
+      return `<div class="mycode"><span class="small muted">Share a code so friends can join you. Guest codes last ${GUEST_CODE_HOURS} hours.</span>
+        <button class="small" data-action="get-code">Get a code</button></div>`;
+    }
     if (shared.code) {
       return `<div class="mycode">
         <span class="small muted">Your code</span>
@@ -952,9 +1021,9 @@
 
   function saveQuizDraft() {
     const q = state.quiz;
-    if (!q) return saveJSON('localStorage', QUIZ_KEY, null);
+    if (!q) return saveJSON(profileStore(), quizKey(), null);
     const { steps, advancing, resumed, ...rest } = q;
-    saveJSON('localStorage', QUIZ_KEY, { ...rest, stepIds: steps.map((x) => x.id) });
+    saveJSON(profileStore(), quizKey(), { ...rest, stepIds: steps.map((x) => x.id) });
   }
 
   const QUIZ_FIELDS = ['cuisines', 'novelty', 'noise', 'dealbreakers', 'maxWait', 'diningWith', 'vibes', 'zip'];
@@ -1411,14 +1480,35 @@
     } catch {
       /* lookups still work; publishing will retry */
     }
-    if (owner()) publishShortCode();
-    startSocial();
+    if (signedIn()) {
+      if (owner()) publishShortCode();
+      startSocial();
+    } else {
+      unpublishShortCode(); // signed out: clear anything an earlier session left shared
+    }
+  }
+
+  /** Take your profile out of the shared store (signing out, deleting, or a stale guest entry). */
+  async function unpublishShortCode() {
+    shared.code = null;
+    shared.guestCodeOk = false;
+    if (!shared.db || !shared.uid) return;
+    try {
+      const mine = await shared.db.doc(`codes/${shared.uid}`).get();
+      if (mine.exists && mine.data().profile) {
+        await shared.db.doc(`codes/${shared.uid}`).set({ code: null, profile: null, card: null, updatedAt: Date.now() });
+      }
+    } catch {
+      /* try again next time */
+    }
   }
 
   /** Save (or refresh) your profile under your 6-digit code. */
   async function publishShortCode() {
     const me = owner();
     if (!shared.db || !me) return;
+    // Guests share nothing unless they ask for a code; accounts keep theirs.
+    if (!signedIn() && !shared.guestCodeOk) return;
     const { favorites, ...profile } = Object.fromEntries(SHARE_FIELDS.map((k) => [k, me[k] ?? null]));
     try {
       let code = shared.code;
@@ -1428,8 +1518,13 @@
         if (!taken.docs.length) code = candidate;
       }
       if (!code) return;
-      await shared.db.doc(`codes/${shared.uid}`).set({ code, profile, card: publicCard(me), updatedAt: Date.now() });
+      const guest = !signedIn();
+      await shared.db.doc(`codes/${shared.uid}`).set({ code, profile, card: guest ? null : publicCard(me), guest, updatedAt: Date.now() });
       shared.code = code;
+      if (!guest && me.shortCode !== code) {
+        me.shortCode = code; // keep the same digits across sign-ins
+        saveProfiles();
+      }
       if (state.view === 'table' && !document.activeElement?.matches('input, textarea')) render();
     } catch {
       shared.code = null; // e.g. view-only access: fall back to the long code
@@ -1445,7 +1540,10 @@
       throw new Error('Couldn’t look that up just now. Try again in a moment.');
     }
     const doc = snap.docs[0];
-    if (!doc) throw new Error('No one has that code yet. Check the digits with your friend.');
+    if (!doc || !doc.data().profile) throw new Error('No one has that code yet. Check the digits with your friend.');
+    if (doc.data().guest && Date.now() - (doc.data().updatedAt || 0) > GUEST_CODE_HOURS * 3600000) {
+      throw new Error('That code has expired. Ask your friend for a new one.');
+    }
     if (doc.id === shared.uid) throw new Error('That’s your own code.');
     const profile = normalizeShared(doc.data().profile);
     if (!profile) throw new Error('That code is missing a profile.');
@@ -1485,7 +1583,7 @@
   }
 
   function startSocial() {
-    if (social.started || !shared.db || !shared.uid) return;
+    if (social.started || !shared.db || !shared.uid || !signedIn()) return;
     social.started = true;
     shared.db.doc(`links/${shared.uid}`).onSnapshot(
       (snap) => {
@@ -1573,7 +1671,7 @@
 
   /** The button(s) on someone's profile: Connect, Request sent, Accept, or Friends. */
   function connectControl(uid, name) {
-    if (!uid || !shared.db) return '';
+    if (!uid || !shared.db || !signedIn()) return '';
     const st = friendState(uid);
     const n = esc(name || personName(uid));
     if (st === 'self') return '';
@@ -1610,6 +1708,11 @@
   }
 
   function friendsCard() {
+    if (!signedIn()) {
+      return `<section class="card stack" id="friends"><h2>Friends</h2>
+        <p class="small muted">Log in to connect with friends and see their profiles.</p>
+        <div><button class="small" data-action="auth-start" data-mode="login">Login/Sign Up</button></div></section>`;
+    }
     if (!shared.db || !shared.uid) {
       return `<section class="card stack" id="friends"><h2>Friends</h2>
         <p class="small muted">Friend connections work in the shared FoodieMatch link.</p></section>`;
@@ -1635,7 +1738,7 @@
 
   /** On the table screen: requests waiting for you, and friends you can bring along in one tap. */
   function tableFriendsHtml() {
-    if (!shared.db || !shared.uid) return '';
+    if (!shared.db || !shared.uid || !signedIn()) return '';
     const { friends, incoming } = socialLists();
     const atTable = new Set(state.profiles.map((p) => p.uid).filter(Boolean));
     const free = friends.filter((u) => !atTable.has(u));
@@ -1665,7 +1768,7 @@
   // visible parts of the profile card (no images). Never coordinates.
   function myPresence() {
     const me = owner();
-    if (!me || visibility(me) !== 'public') return { profile: null, town: null, card: null };
+    if (!me || !signedIn() || visibility(me) !== 'public') return { profile: null, town: null, card: null };
     const { favorites, ...profile } = Object.fromEntries(SHARE_FIELDS.map((k) => [k, me[k] ?? null]));
     return { profile, town: state.myTown || null, card: publicCard(me, { images: false, maxFavorites: 6 }) };
   }
@@ -1777,7 +1880,7 @@
     'to-account': () => go('account'),
     'continue-guest': () => {
       state.auth = { guest: true };
-      saveJSON('localStorage', AUTH_KEY, state.auth);
+      saveJSON('sessionStorage', GUEST_KEY, state.auth);
       go('account');
     },
     'auth-start': (el) => startAuth(el.dataset.mode, owner() ? () => go(state.returnView || 'table') : null),
@@ -1797,11 +1900,19 @@
       go(owner() ? 'table' : 'welcome');
     },
     'log-out': () => {
+      saveProfiles(); // kept under the account for next time
+      saveQuizDraft();
       state.twoFaSetup = null;
-      state.auth = { guest: true };
-      saveJSON('localStorage', AUTH_KEY, state.auth);
+      state.auth = null;
+      saveJSON('localStorage', AUTH_KEY, null);
+      state.profiles = [];
+      state.selected = new Set();
+      state.quiz = null;
+      state.outcome = null;
+      unpublishShortCode(); // nothing about you stays shared while you're signed out
+      syncPresence();
+      go('welcome');
       toast('Signed out');
-      render();
     },
     rate: (el) => {
       const me = owner();
@@ -1919,6 +2030,11 @@
       go('profile');
       document.getElementById('friends')?.scrollIntoView({ block: 'start' });
     },
+    'get-code': async () => {
+      shared.guestCodeOk = true;
+      await publishShortCode();
+      if (!shared.code) toast('Couldn’t make a code just now. Try again in a moment.');
+    },
     'quiz-restart': () => {
       if (state.confirmRemove !== 'quiz-restart') {
         state.confirmRemove = 'quiz-restart';
@@ -2020,13 +2136,18 @@
         return render();
       }
       state.confirmRemove = null;
+      // Delete this person's saved data wherever it lives (account on this device, or the tab).
+      saveJSON(profileStore(), profileKey(), null);
+      saveJSON(profileStore(), quizKey(), null);
       state.profiles = [];
       state.selected.clear();
       state.auth = null;
       state.hidden.clear();
       state.passed = {};
       saveJSON('localStorage', AUTH_KEY, null);
+      saveJSON('sessionStorage', GUEST_KEY, null);
       registerSelf({ usernameKey: null, emailHash: null });
+      unpublishShortCode();
       state.quiz = null;
       saveQuizDraft();
       saveJSON('sessionStorage', HIDDEN_KEY, null);
@@ -2238,7 +2359,7 @@
       if (!name) return toast('Add a username to save.');
       if (usernameKey(name) !== usernameKey(me.name) && (await usernameTaken(name))) return toast('That username is taken. Try another.');
       me.name = name;
-      registerSelf({ usernameKey: usernameKey(name) });
+      if (signedIn()) registerSelf({ usernameKey: usernameKey(name) });
       profileChanged('Username saved');
     },
     email: async () => {
