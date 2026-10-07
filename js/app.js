@@ -852,7 +852,7 @@
         </form>
         <form class="stack" data-form="phone" novalidate>
           <div class="field"><label for="set-phone">Phone number <span class="muted">(optional)</span></label>
-            <input type="tel" id="set-phone" autocomplete="tel" placeholder="(916) 555-0123" value="${esc(me.phone ? formatPhone(me.phone) : '')}" aria-describedby="set-phone-note" />
+            <input type="tel" id="set-phone" autocomplete="tel" value="${esc(me.phone ? formatPhone(me.phone) : '')}" aria-describedby="set-phone-note" />
             <span id="set-phone-note" class="small muted">Hidden from others unless you turn it on below.</span></div>
           <div class="row"><button class="small" type="submit">Save phone</button>${me.phone ? '<button class="ghost small" type="button" data-action="remove-phone">Remove</button>' : ''}</div>
         </form>
@@ -2457,7 +2457,7 @@
     phone: () => {
       const me = owner();
       const digits = document.getElementById('set-phone').value.replace(/\D/g, '');
-      if (digits.length < 10 || digits.length > 15) return toast('Add a full phone number, like (916) 555-0123.');
+      if (digits.length < 10 || digits.length > 15) return toast('Add a full phone number, including the area code.');
       me.phone = digits;
       profileChanged('Phone number saved');
     },
