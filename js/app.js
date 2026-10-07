@@ -757,7 +757,7 @@
       <section class="card stack">
         <h2>Session</h2>
         <div class="row">
-          ${signedIn() ? `<span class="small muted">${esc(state.auth.email)}</span><button class="ghost small" data-action="log-out">Log out</button>` : ''}
+          ${signedIn() ? `<span class="small muted">${esc(state.auth.email)}</span><button class="ghost small" data-action="log-out">Sign out</button>` : ''}
           <button class="ghost small" data-action="reset">${state.confirmRemove === 'reset' ? 'Tap again to delete session' : 'Delete session'}</button>
         </div>
       </section>
@@ -808,7 +808,7 @@
     const requests = shared.uid ? socialLists().incoming.length : 0;
     const profileBtn = `<button class="me-btn" data-action="open-profile" aria-label="Your profile${requests ? `, ${requests} friend request${requests > 1 ? 's' : ''}` : ''}" ${current}>${PERSON_ICON}${requests ? '<span class="req-dot" aria-hidden="true"></span>' : ''}</button>`;
     if (signedIn()) {
-      area.innerHTML = profileBtn;
+      area.innerHTML = `<button class="signin-link" data-action="log-out">Sign Out</button>${profileBtn}`;
       return;
     }
     const icon = owner() ? profileBtn : `<button class="me-btn" data-action="sign-in" data-mode="login" aria-label="Sign up or log in">${PERSON_ICON}</button>`;
@@ -1800,7 +1800,7 @@
       state.twoFaSetup = null;
       state.auth = { guest: true };
       saveJSON('localStorage', AUTH_KEY, state.auth);
-      toast('Logged out');
+      toast('Signed out');
       render();
     },
     rate: (el) => {
