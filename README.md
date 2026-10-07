@@ -19,6 +19,10 @@ npm test           # matching engine tests (Node 18+)
 
 You can also double-click `index.html`. Location features work best over `http://localhost`.
 
+## Mobile and desktop
+
+On phones (under 900px) the app is one 480px column with the main button pinned at the bottom, in thumb reach. On desktop it widens to use the screen: the quiz, forms and log-in stay a comfortable 640px wide (quiz options in two columns), **your table** shows today's profile beside "Who's joining you?", **picks** show result cards two across, and **your profile** keeps your photo, bio and settings on the left with friends and favorites on the right. The main button sits under the content instead of pinned to the edge.
+
 ## How it works
 
 0. **Sessions and privacy**: guests get the original session model. Everything works for one visit, but nothing is saved after the tab closes, and nothing goes into the shared store unless they tap **Get a code**; guest codes expire after 12 hours. Without a login, the app always opens on the welcome screen. Logged-in accounts keep their profile on the device, saved under the account; **Sign Out** ends the session and returns to welcome, and logging back in restores it (same code digits). Friends and shared profile cards are for logged-in accounts. Signing in mid-session carries the guest's work into the account. Opening the app while logged out clears anything an earlier session left in the shared store.

@@ -1290,7 +1290,7 @@
         ${estimatedNote}
         <p class="small muted">Swipe a card away to hide it for this session.${state.hidden.size ? ` <button class="linkish" data-action="unhide">Show ${state.hidden.size} hidden</button>` : ''}</p>
       </section>
-      <section>
+      <section class="result-list">
         ${top.length ? top.map(card).join('') : '<div class="card">Your table has very particular tastes tonight. Try another ZIP code nearby, or loosen one preference.</div>'}
       </section>
       ${excluded.length ? `<section class="card">
@@ -1322,6 +1322,7 @@
       join: renderJoin,
       'join-how': renderJoinHow,
     };
+    $app.dataset.view = state.view; // desktop layouts are chosen per screen in styles.css
     views[state.view]();
     renderTopbar();
   }

@@ -434,3 +434,37 @@ label.btn { cursor: pointer; }
 /* The logo, large, on the welcome screen */
 .logo.hero-logo { width: 176px; height: 120px; justify-self: center; margin-bottom: 8px; }
 .logo.hero-logo circle { stroke-width: 1.4; }
+
+/* ---------------------------------------------------------------------------
+   Desktop (900px and up). Mobile stays a single 480px column. On a big screen the
+   page widens: forms and one-question screens keep a comfortable 640px reading
+   width, while the table, picks and profile spread into two columns.
+   --------------------------------------------------------------------------- */
+@media (min-width: 900px) {
+  .topbar { padding: 14px 32px; }
+  main { max-width: 1120px; padding: 40px 32px 56px; gap: 32px; }
+  main > * { width: 100%; max-width: 640px; justify-self: center; }
+
+  /* The main action sits under the content instead of pinned to the bottom edge */
+  .actionbar { position: static; margin: 0; padding: 0; background: none; justify-content: flex-end; }
+  .actionbar .primary { flex: 0 1 300px; }
+
+  .welcome { min-height: calc(100vh - 200px); }
+  .welcome h1 { font-size: 3.4rem; }
+  .options { grid-template-columns: 1fr 1fr; }
+
+  /* Table: today's profile on the left, who's joining on the right */
+  main[data-view="table"] { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); column-gap: 48px; align-items: start; }
+  main[data-view="table"] > * { max-width: none; }
+  main[data-view="table"] > .actionbar { grid-column: 1 / -1; }
+
+  /* Picks: the heading across the top, result cards in two columns */
+  main[data-view="results"] > * { max-width: none; }
+  .result-list { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+  .result-list .card + .card { margin-top: 0; }
+
+  /* Profile: who you are on the left, friends and favorites on the right */
+  main[data-view="profile"] { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); column-gap: 48px; align-items: start; }
+  main[data-view="profile"] > * { max-width: none; grid-column: 2; }
+  main[data-view="profile"] > .profile-head { grid-column: 1; grid-row: 1 / span 4; position: sticky; top: 96px; }
+}
