@@ -282,19 +282,19 @@
 
   function renderWelcome() {
     $app.innerHTML = `
-      <section class="hero">
+      <section class="hero welcome">
         <svg class="setting" viewBox="0 0 220 120" aria-hidden="true">
           <path d="M38 18v30c0 7 5 11 10 11v45M48 18v28M58 18v30c0 7-5 11-10 11" />
           <circle cx="110" cy="62" r="46" /><circle cx="110" cy="62" r="31" />
           <path d="M176 104V20c11 6 14 26 14 40h-14" />
         </svg>
         <h1>Many cravings. One table.</h1>
-      </section>
-      <div class="actionbar stacked">
-        <button class="primary block" data-action="auth-start" data-mode="login">Login/Sign Up</button>
-        <button class="ghost block" data-action="continue-guest">Continue as guest</button>
-        <button class="ghost block" data-action="open-join">Join a group</button>
-      </div>`;
+        <div class="welcome-actions">
+          <button class="primary" data-action="auth-start" data-mode="login">Login/Sign Up</button>
+          <button data-action="continue-guest">Continue as guest</button>
+          <button data-action="open-join">Join a group</button>
+        </div>
+      </section>`;
   }
 
   // Login / create account / two-factor: a clickable PROTOTYPE for user testing.

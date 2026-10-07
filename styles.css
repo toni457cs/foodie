@@ -122,7 +122,11 @@ textarea { font-family: ui-monospace, Menlo, monospace; font-size: 0.8rem; resiz
 .field label { font-weight: 500; font-size: 0.95rem; }
 
 /* Welcome */
-.hero { display: grid; gap: 20px; align-content: center; min-height: calc(100svh - 190px); text-align: center; }
+.hero { display: grid; gap: 20px; align-content: center; text-align: center; }
+/* Welcome: illustration, headline and the three choices centered together on the screen */
+.welcome { min-height: calc(100svh - 140px); }
+.welcome-actions { display: grid; gap: 12px; width: 100%; max-width: 360px; justify-self: center; margin-top: 20px; }
+.welcome-actions button { width: 100%; min-height: 54px; font-size: 1.05rem; }
 .hero h1 { font-size: 2.6rem; margin: 0; }
 #account-form { min-height: 60vh; align-content: start; }
 #account-form h1 label { font: inherit; }
@@ -226,8 +230,6 @@ summary { cursor: pointer; color: var(--muted); font-size: 0.9rem; min-height: 3
 #nearby .eyebrow { margin: 4px 0 0; }
 .result .highlights { margin: 10px 0 4px; color: var(--accent); font-size: 0.95rem; }
 
-/* Welcome choices */
-.actionbar.stacked { flex-direction: column; }
 
 /* Prototype sign-in */
 .proto {
