@@ -67,7 +67,7 @@
   ];
 
   const QUIZ = [
-    { id: 'name', type: 'text', prompt: 'First, what should we call you?', placeholder: 'Your first name' },
+    { id: 'name', type: 'text', prompt: 'Choose a username', placeholder: 'Username', hint: 'Don’t use your full name.' },
     {
       id: 'cuisines', type: 'multi', options: CUISINES, exclusive: 'any', max: 3,
       prompt: 'What food genre are you craving today?',

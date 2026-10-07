@@ -220,7 +220,7 @@
         <h1>Many cravings. One table.</h1>
       </section>
       <div class="actionbar stacked">
-        <button class="primary block" data-action="auth-start" data-mode="signup">Log in or create account</button>
+        <button class="primary block" data-action="auth-start" data-mode="signup">Sign in or create account</button>
         <button class="ghost block" data-action="continue-guest">Continue as guest</button>
       </div>`;
   }
@@ -263,7 +263,7 @@
       <form id="auth-form" class="stack" novalidate>
         ${badge}
         <div class="tabs" role="tablist">
-          <button type="button" role="tab" aria-selected="${!signup}" data-action="auth-mode" data-mode="login">Log in</button>
+          <button type="button" role="tab" aria-selected="${!signup}" data-action="auth-mode" data-mode="login">Sign in</button>
           <button type="button" role="tab" aria-selected="${signup}" data-action="auth-mode" data-mode="signup">Create account</button>
         </div>
         <h1>${signup ? 'Create your account' : 'Welcome back'}</h1>
@@ -275,7 +275,7 @@
         <p id="auth-error" class="notice error" hidden></p>
         <div class="actionbar">
           <button class="ghost" type="button" data-action="auth-cancel">← Back</button>
-          <button class="primary" type="submit">${signup ? 'Create account' : 'Log in'}</button>
+          <button class="primary" type="submit">${signup ? 'Create account' : 'Sign in'}</button>
         </div>
       </form>`;
     document.getElementById('auth-email').focus();
@@ -321,8 +321,9 @@
     const draft = state.accountDraft || {};
     $app.innerHTML = `
       <form id="account-form" class="stack" novalidate>
-        <h1><label for="acct-name">What’s your name?</label></h1>
-        <input type="text" id="acct-name" maxlength="40" autocomplete="given-name" placeholder="First name" value="${esc(draft.name || '')}" />
+        <h1><label for="acct-name">Choose a username</label></h1>
+        <input type="text" id="acct-name" maxlength="40" autocomplete="username" placeholder="Username" aria-describedby="acct-note" value="${esc(draft.name || '')}" />
+        <p id="acct-note" class="small muted">Don’t use your full name.</p>
         <p id="acct-error" class="notice error" hidden></p>
         <div class="actionbar">
           <button class="ghost" type="button" data-action="home">← Back</button>
@@ -336,7 +337,7 @@
       state.accountDraft = { name };
       if (!name) {
         const error = document.getElementById('acct-error');
-        error.textContent = 'Add your first name to continue.';
+        error.textContent = 'Add a username to continue.';
         error.hidden = false;
         return;
       }
@@ -351,10 +352,11 @@
   const SECTIONS = [
     ['photo', 'Profile photo'],
     ['header', 'Header image'],
-    ['tastes', 'Taste profile'],
-    ['genres', 'Top genres'],
+    ['bio', 'Bio'],
+    ['phone', 'Phone number'],
     ['favorites', 'Favorites'],
     ['ratings', 'Ratings'],
+    ['reviews', 'Reviews and photos'],
   ];
   const VISIBILITY = {
     private: ['Private', 'Only you can see your profile. Friends with your code still get your taste answers for matching.'],
@@ -362,30 +364,52 @@
     public: ['Public', 'You show up under Nearby, and anyone with the app open can see your profile.'],
   };
   const visibility = (p) => (VISIBILITY[p?.visibility] ? p.visibility : 'private'); // private by default
-  const isHidden = (p, key) => !!(p?.hiddenSections || {})[key];
+  // Phone numbers stay hidden from others until someone chooses to show theirs.
+  const HIDDEN_BY_DEFAULT = { phone: true };
+  const isHidden = (p, key) => {
+    const set = p?.hiddenSections || {};
+    return key in set ? !!set[key] : !!HIDDEN_BY_DEFAULT[key];
+  };
   const IMAGE_URL = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
+  const MAX_REVIEW_PHOTOS = 3;
+  const CARD_PHOTO_BUDGET = 150000; // characters of review photos a shared card may carry
+
+  const PERSON_ICON = '<svg class="person-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.6"/><path d="M5 19.5c1.2-3.3 4-5 7-5s5.8 1.7 7 5"/></svg>';
+  const GEAR_ICON = '<svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.4M12 18.8v2.4M21.2 12h-2.4M5.2 12H2.8M18.5 5.5l-1.7 1.7M7.2 16.8l-1.7 1.7M18.5 18.5l-1.7-1.7M7.2 7.2L5.5 5.5"/></svg>';
+
+  const formatPhone = (digits) =>
+    digits.length === 10 ? `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}` : `+${digits}`;
 
   /** What others may see of a profile: null when it's private. Hidden sections are left out. */
-  function publicCard(me, { images = true, maxFavorites = 12 } = {}) {
+  function publicCard(me, { images = true, maxFavorites = 12, reviewChars = 500 } = {}) {
     if (!me || visibility(me) === 'private') return null;
     const card = { name: me.name, visibility: visibility(me) };
     if (images && me.avatar && !isHidden(me, 'photo')) card.avatar = me.avatar;
     if (images && me.header && !isHidden(me, 'header')) card.header = me.header;
-    if (!isHidden(me, 'tastes')) {
-      card.tastes = { cuisines: arr(me.cuisines), noise: me.noise || null, vibes: arr(me.vibes), diningWith: me.diningWith || null };
-    }
-    if (!isHidden(me, 'genres')) card.genres = Match.topGenres(me);
+    if (me.bio && !isHidden(me, 'bio')) card.bio = me.bio;
+    if (me.phone && !isHidden(me, 'phone')) card.phone = me.phone;
     if (!isHidden(me, 'favorites')) {
       const saved = me.saved || {};
+      let budget = CARD_PHOTO_BUDGET;
       card.favorites = arr(me.favorites)
         .filter((id) => saved[id])
         .slice(0, maxFavorites)
-        .map((id) => ({
-          name: saved[id].name,
-          town: saved[id].town || '',
-          cuisine: arr(saved[id].cuisine),
-          ...(isHidden(me, 'ratings') ? {} : { stars: (me.ratings || {})[id] || 0 }),
-        }));
+        .map((id) => {
+          const f = { name: saved[id].name, town: saved[id].town || '', cuisine: arr(saved[id].cuisine) };
+          if (!isHidden(me, 'ratings')) f.stars = (me.ratings || {})[id] || 0;
+          const r = (me.reviews || {})[id];
+          if (r && !isHidden(me, 'reviews')) {
+            if (r.text) f.review = r.text.slice(0, reviewChars);
+            if (images) {
+              f.photos = arr(r.photos).filter((ph) => {
+                if (ph.length > budget) return false;
+                budget -= ph.length;
+                return true;
+              });
+            }
+          }
+          return f;
+        });
     }
     return card;
   }
@@ -394,18 +418,12 @@
   function normalizeCard(c) {
     if (!c || typeof c !== 'object' || typeof c.name !== 'string') return null;
     const str = (v, n = 60) => (typeof v === 'string' ? v.slice(0, n) : '');
+    const img = (v, max) => typeof v === 'string' && v.length < max && IMAGE_URL.test(v);
     const out = { name: str(c.name, 40), visibility: VISIBILITY[c.visibility] ? c.visibility : 'friends' };
-    if (typeof c.avatar === 'string' && c.avatar.length < 120000 && IMAGE_URL.test(c.avatar)) out.avatar = c.avatar;
-    if (typeof c.header === 'string' && c.header.length < 200000 && IMAGE_URL.test(c.header)) out.header = c.header;
-    if (c.tastes && typeof c.tastes === 'object') {
-      out.tastes = {
-        cuisines: arr(c.tastes.cuisines).filter((x) => x in LABELS.cuisine).slice(0, 3),
-        noise: c.tastes.noise in LABELS.noise ? c.tastes.noise : null,
-        vibes: arr(c.tastes.vibes).filter((x) => x in LABELS.vibe).slice(0, 2),
-        diningWith: c.tastes.diningWith in LABELS.company ? c.tastes.diningWith : null,
-      };
-    }
-    if (Array.isArray(c.genres)) out.genres = arr(c.genres).filter((x) => x in LABELS.cuisine).slice(0, 3);
+    if (img(c.avatar, 120000)) out.avatar = c.avatar;
+    if (img(c.header, 200000)) out.header = c.header;
+    if (c.bio) out.bio = str(c.bio, 160);
+    if (typeof c.phone === 'string' && /^\d{7,15}$/.test(c.phone)) out.phone = c.phone;
     if (Array.isArray(c.favorites)) {
       out.favorites = c.favorites
         .filter((f) => f && typeof f.name === 'string')
@@ -415,6 +433,8 @@
           town: str(f.town, 40),
           cuisine: arr(f.cuisine).filter((x) => x in LABELS.cuisine),
           ...(Number.isInteger(f.stars) && f.stars >= 0 && f.stars <= 5 ? { stars: f.stars } : {}),
+          ...(f.review ? { review: str(f.review, 500) } : {}),
+          ...(Array.isArray(f.photos) ? { photos: f.photos.filter((ph) => img(ph, 90000)).slice(0, MAX_REVIEW_PHOTOS) } : {}),
         }));
     }
     return out;
@@ -435,32 +455,26 @@
   const starRow = (n) => `<span class="stars-static" aria-label="${n} of 5">${[1, 2, 3, 4, 5]
     .map((i) => `<span class="star-static ${i <= n ? 'on' : ''}">${STAR}</span>`).join('')}</span>`;
 
+  const photoGrid = (photos, removeFor) =>
+    photos.length
+      ? `<div class="review-photos">${photos
+          .map((ph, i) => `<figure><img src="${esc(ph)}" alt="Review photo ${i + 1}" loading="lazy" />${removeFor
+            ? `<button class="small on-image" data-action="remove-review-photo" data-rid="${esc(removeFor)}" data-i="${i}" aria-label="Remove photo ${i + 1}">Remove</button>`
+            : ''}</figure>`)
+          .join('')}</div>`
+      : '';
+
   /** Read-only view of a profile card: what friends (or the public) see. */
   function cardSections(card) {
-    const out = [];
-    const t = card.tastes;
-    if (t) {
-      const rows = [
-        ['Craving', t.cuisines.map((c) => LABELS.cuisine[c]).join(', ')],
-        ['Noise', LABELS.noise[t.noise]],
-        ['Loves', t.vibes.map((v) => LABELS.vibe[v]).join(', ')],
-        ['With', LABELS.company[t.diningWith]],
-      ].filter(([, v]) => v);
-      if (rows.length) {
-        out.push(`<section class="card stack"><h2>Taste profile</h2><dl class="facts">${rows
-          .map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl></section>`);
-      }
-    }
-    if (card.genres?.length) {
-      out.push(`<section class="card stack"><h2>Top genres</h2><p class="genres">${esc(card.genres.map((c) => LABELS.cuisine[c]).join(' · '))}</p></section>`);
-    }
-    if (card.favorites?.length) {
-      out.push(`<section class="card stack"><h2>Favorites</h2><div class="favs">${card.favorites
-        .map((f) => `<div class="fav"><div class="who"><strong>${esc(f.name)}</strong>
+    if (!card.favorites?.length) return '<p class="muted">No favorites shared yet.</p>';
+    return `<section class="card stack"><h2>Favorites</h2><div class="favs">${card.favorites
+      .map((f) => `<div class="fav">
+        <div class="who"><strong>${esc(f.name)}</strong>
           <div class="small muted">${esc([f.cuisine.map((c) => LABELS.cuisine[c]).join(', '), f.town].filter(Boolean).join(' · '))}</div></div>
-          ${f.stars ? starRow(f.stars) : ''}</div>`).join('')}</div></section>`);
-    }
-    return out.join('') || '<p class="muted">Nothing shared here yet.</p>';
+        ${f.stars ? starRow(f.stars) : ''}
+        ${f.review ? `<p class="review">${esc(f.review)}</p>` : ''}
+        ${photoGrid(f.photos || [])}
+      </div>`).join('')}</div></section>`;
   }
 
   function personHtml(card, fallbackName, backLabel) {
@@ -475,6 +489,8 @@
         <div class="banner">${bannerHtml(card.header)}</div>
         <div class="profile-id">${avatarHtml(card, 'lg')}</div>
         <h1>${esc(card.name)}</h1>
+        ${card.bio ? `<p class="bio">${esc(card.bio)}</p>` : ''}
+        ${card.phone ? `<p class="small">${esc(formatPhone(card.phone))}</p>` : ''}
         <p class="small muted">${esc(VISIBILITY[card.visibility][0])} profile</p>
       </section>
       ${cardSections(card)}
@@ -486,7 +502,15 @@
     if (!me) return go('welcome');
     const vis = visibility(me);
     const hiddenTag = (key) => (isHidden(me, key) ? '<span class="chip">Hidden from others</span>' : '');
-    const usual = Match.topGenres(me);
+    const bio = state.editingBio
+      ? `<form class="stack" data-form="bio" novalidate>
+          <label class="sr-only" for="set-bio">Bio</label>
+          <textarea id="set-bio" class="text-area" rows="3" maxlength="160" placeholder="A line about how you like to eat">${esc(me.bio || '')}</textarea>
+          <div class="row"><button class="primary small" type="submit">Save bio</button><button class="ghost small" type="button" data-action="cancel-bio">Cancel</button></div>
+        </form>`
+      : me.bio
+        ? `<div class="bio-row"><p class="bio">${esc(me.bio)}</p><div class="row">${hiddenTag('bio')}<button class="ghost small" data-action="edit-bio">Edit bio</button></div></div>`
+        : '<div><button class="ghost small" data-action="edit-bio">Add a bio</button></div>';
     $app.innerHTML = `
       <section class="profile-head">
         <div class="banner">
@@ -508,27 +532,22 @@
         <input type="file" id="pick-header" class="file-pick" data-kind="header" accept="image/*" hidden />
         <input type="file" id="pick-avatar" class="file-pick" data-kind="avatar" accept="image/*" hidden />
         <h1>${esc(me.name)}</h1>
+        ${bio}
+        ${me.phone ? `<p class="small">${esc(formatPhone(me.phone))} ${hiddenTag('phone')}</p>` : ''}
         <p class="small muted"><span class="vis-pill">${esc(VISIBILITY[vis][0])}</span> ${esc(VISIBILITY[vis][1])}</p>
         <div class="row">
-          <button class="small" data-action="open-settings">Settings</button>
+          <button data-action="open-settings">${GEAR_ICON}Settings</button>
           <button class="ghost small" data-action="preview-profile">See what friends see</button>
         </div>
       </section>
 
-      <section class="card me">
-        <div class="spread"><h2>Taste profile</h2><button class="ghost small" data-action="retake" data-id="${me.id}">Update</button></div>
-        ${hiddenTag('tastes')}
-        <dl class="facts">${profileFacts(me)}</dl>
-      </section>
-
-      <section class="card stack">
-        <div class="spread"><h2>Top genres</h2>${hiddenTag('genres')}</div>
-        ${usual.length
-          ? `<p class="genres">${esc(usual.map((c) => LABELS.cuisine[c] || c).join(' · '))}</p>`
-          : '<p class="small muted">Genres you pick in two or more quizzes show up here.</p>'}
-      </section>
-
-      ${favoritesCard(me, { tags: [hiddenTag('favorites'), isHidden(me, 'ratings') ? '<span class="chip">Ratings hidden from others</span>' : ''].join('') })}
+      ${favoritesCard(me, {
+        tags: [
+          hiddenTag('favorites'),
+          isHidden(me, 'ratings') ? '<span class="chip">Ratings hidden from others</span>' : '',
+          isHidden(me, 'reviews') ? '<span class="chip">Reviews hidden from others</span>' : '',
+        ].join(''),
+      })}
 
       <section><button class="ghost" data-action="home">← Back to my table</button></section>`;
   }
@@ -585,8 +604,8 @@
               <div class="row"><button class="primary small" type="submit">Turn on</button><button class="ghost small" type="button" data-action="cancel-2fa">Cancel</button></div>
             </form>`
           : ''}`
-      : `<p class="small muted">Log in or create an account to add an email, a password and two-factor authentication.</p>
-        <div><button class="small" data-action="auth-start" data-mode="signup">Log in or create account</button></div>`;
+      : `<p class="small muted">Sign in or create an account to add an email, a password and two-factor authentication.</p>
+        <div><button class="small" data-action="auth-start" data-mode="signup">Sign in or create account</button></div>`;
     $app.innerHTML = `
       <section><h1>Settings</h1></section>
 
@@ -594,8 +613,15 @@
         <h2>Account</h2>
         <form class="stack" data-form="username" novalidate>
           <div class="field"><label for="set-name">Username</label>
-            <input type="text" id="set-name" maxlength="40" autocomplete="nickname" value="${esc(me.name)}" /></div>
+            <input type="text" id="set-name" maxlength="40" autocomplete="username" aria-describedby="set-name-note" value="${esc(me.name)}" />
+            <span id="set-name-note" class="small muted">Don’t use your full name.</span></div>
           <div><button class="small" type="submit">Save username</button></div>
+        </form>
+        <form class="stack" data-form="phone" novalidate>
+          <div class="field"><label for="set-phone">Phone number <span class="muted">(optional)</span></label>
+            <input type="tel" id="set-phone" autocomplete="tel" placeholder="(916) 555-0123" value="${esc(me.phone ? formatPhone(me.phone) : '')}" aria-describedby="set-phone-note" />
+            <span id="set-phone-note" class="small muted">Hidden from others unless you turn it on below.</span></div>
+          <div class="row"><button class="small" type="submit">Save phone</button>${me.phone ? '<button class="ghost small" type="button" data-action="remove-phone">Remove</button>' : ''}</div>
         </form>
         ${account}
       </section>
@@ -621,7 +647,7 @@
       <section class="card stack">
         <h2>Session</h2>
         <div class="row">
-          ${signedIn() ? `<span class="small muted">${esc(state.auth.email)}</span><button class="ghost small" data-action="log-out">Log out</button>` : ''}
+          ${signedIn() ? `<span class="small muted">${esc(state.auth.email)}</span><button class="ghost small" data-action="log-out">Sign out</button>` : ''}
           <button class="ghost small" data-action="reset">${state.confirmRemove === 'reset' ? 'Tap again to delete session' : 'Delete session'}</button>
         </div>
       </section>
@@ -631,7 +657,7 @@
 
   /** Crop and shrink a picked image so it fits comfortably in storage. */
   function resizeImage(file, kind) {
-    const [w, h] = kind === 'avatar' ? [192, 192] : [960, 320];
+    const [w, h] = { avatar: [192, 192], header: [960, 320], review: [480, 360] }[kind];
     return new Promise((resolve, reject) => {
       const url = URL.createObjectURL(file);
       const img = new Image();
@@ -644,7 +670,7 @@
         const sh = h / scale;
         canvas.getContext('2d').drawImage(img, (img.naturalWidth - sw) / 2, (img.naturalHeight - sh) / 2, sw, sh, 0, 0, w, h);
         URL.revokeObjectURL(url);
-        resolve(canvas.toDataURL('image/jpeg', kind === 'avatar' ? 0.82 : 0.78));
+        resolve(canvas.toDataURL('image/jpeg', { avatar: 0.82, header: 0.78, review: 0.72 }[kind]));
       };
       img.onerror = () => {
         URL.revokeObjectURL(url);
@@ -664,13 +690,15 @@
     else if (message) toast(message);
   }
 
+  /** The same person icon on every screen; "Sign in" beside it until you're signed in. */
   function renderTopbar() {
-    const btn = document.getElementById('me-btn');
-    if (!btn) return;
-    const me = owner();
-    btn.hidden = !me;
-    if (me) btn.innerHTML = avatarHtml(me, 'sm');
-    btn.toggleAttribute('aria-current', ['profile', 'settings', 'preview'].includes(state.view));
+    const area = document.getElementById('me-area');
+    if (!area) return;
+    const current = ['profile', 'settings', 'preview'].includes(state.view) ? 'aria-current="page"' : '';
+    const profileBtn = `<button class="me-btn" data-action="open-profile" aria-label="Your profile" ${current}>${PERSON_ICON}</button>`;
+    if (signedIn()) area.innerHTML = profileBtn;
+    else if (owner()) area.innerHTML = `<button class="signin-link" data-action="sign-in">Sign in</button>${profileBtn}`;
+    else area.innerHTML = `<button class="me-btn me-signin" data-action="sign-in">${PERSON_ICON}<span>Sign in</span></button>`;
   }
 
   function dinerRow(p) {
@@ -697,15 +725,15 @@
     if (!signedIn()) {
       return `<section class="card stack">
         <h2>Your favorites</h2>
-        <p class="small muted">Log in to save places and rate them.</p>
-        <div><button class="small" data-action="auth-start" data-mode="login">Log in</button></div>
+        <p class="small muted">Sign in to save places, rate them and write reviews.</p>
+        <div><button class="small" data-action="auth-start" data-mode="login">Sign in</button></div>
       </section>`;
     }
     const saved = me.saved || {};
     const ids = arr(me.favorites).filter((id) => saved[id]);
     if (!ids.length) {
       return `<section class="card stack"><h2>Your favorites</h2>${tags ? `<div>${tags}</div>` : ''}
-        <p class="small muted">Tap Save on a pick and it shows up here to rate.</p></section>`;
+        <p class="small muted">Tap Save on a pick and it shows up here to rate and review.</p></section>`;
     }
     const stars = (id) => {
       const current = (me.ratings || {})[id] || 0;
@@ -714,6 +742,25 @@
           aria-label="${n} of 5" aria-pressed="${n === current}">${STAR}</button>`)
         .join('')}</div>`;
     };
+    const review = (id) => {
+      const r = (me.reviews || {})[id] || {};
+      const photos = arr(r.photos);
+      const addPhoto = photos.length < MAX_REVIEW_PHOTOS
+        ? `<label class="btn small" for="pick-review-${esc(id)}">Add photo</label>
+           <input type="file" id="pick-review-${esc(id)}" class="file-pick" data-kind="review" data-rid="${esc(id)}" accept="image/*" hidden />`
+        : '';
+      if (state.editingReview === id) {
+        return `<form class="stack review-form" data-form="review" data-rid="${esc(id)}" novalidate>
+          <label class="sr-only" for="review-${esc(id)}">Review of ${esc(saved[id].name)}</label>
+          <textarea id="review-${esc(id)}" class="text-area" rows="4" maxlength="500" placeholder="What did you love?">${esc(r.text || '')}</textarea>
+          <div class="row"><button class="primary small" type="submit">Save review</button><button class="ghost small" type="button" data-action="cancel-review">Cancel</button></div>
+        </form>
+        ${photoGrid(photos, id)}<div class="row">${addPhoto}</div>`;
+      }
+      return `${r.text ? `<p class="review">${esc(r.text)}</p>` : ''}
+        ${photoGrid(photos, id)}
+        <div class="row"><button class="ghost small" data-action="edit-review" data-rid="${esc(id)}">${r.text ? 'Edit review' : 'Write a review'}</button>${addPhoto}</div>`;
+    };
     return `<section class="card stack">
       <h2>Your favorites</h2>
       ${tags ? `<div>${tags}</div>` : ''}
@@ -721,8 +768,9 @@
         .map((id) => `<div class="fav">
           <div class="who"><strong>${esc(saved[id].name)}</strong>
             <div class="small muted">${esc([saved[id].cuisine.map((c) => LABELS.cuisine[c] || c).join(', '), saved[id].town].filter(Boolean).join(' · '))}</div></div>
-          ${stars(id)}
           <button class="ghost small" data-action="unfavorite" data-rid="${esc(id)}" aria-label="Remove ${esc(saved[id].name)}">Remove</button>
+          ${stars(id)}
+          <div class="fav-review">${review(id)}</div>
         </div>`)
         .join('')}</div>
       <p class="small muted">Your ratings shape future picks.</p>
@@ -796,7 +844,7 @@
     if (q.type === 'text' || q.type === 'zip') {
       const zip = q.type === 'zip';
       body = `<input type="text" id="q-text" maxlength="${zip ? 5 : 40}" placeholder="${esc(q.placeholder)}" value="${esc(value || '')}"
-        ${zip ? 'inputmode="numeric" autocomplete="postal-code"' : 'autocomplete="given-name"'} />
+        ${zip ? 'inputmode="numeric" autocomplete="postal-code"' : 'autocomplete="off"'} />
         ${zip ? `<p id="zip-note" class="small muted" ${zipValid(value) || !value ? 'hidden' : ''}>${esc(zipNote(value))}</p>` : ''}`;
     } else {
       const isOn = (v) => (q.type === 'multi' ? arr(value).includes(v) : value === v);
@@ -1393,7 +1441,7 @@
       state.twoFaSetup = null;
       state.auth = { guest: true };
       saveJSON('localStorage', AUTH_KEY, state.auth);
-      toast('Logged out');
+      toast('Signed out');
       render();
     },
     rate: (el) => {
@@ -1411,10 +1459,17 @@
       me.favorites = arr(me.favorites).filter((x) => x !== rid);
       const { [rid]: _, ...rest } = me.saved || {};
       me.saved = rest;
+      if (me.reviews) delete me.reviews[rid];
       saveProfiles();
       render();
     },
-    'open-profile': () => go('profile'),
+    'open-profile': () => (owner() ? go('profile') : signedIn() ? go('account') : actions['sign-in']()),
+    // Sign in from any step, then come back to it.
+    'sign-in': () => {
+      if (state.view === 'auth') return;
+      const back = state.view;
+      startAuth('login', ['welcome', 'account'].includes(back) ? null : () => go(back));
+    },
     'open-settings': () => go('settings'),
     'preview-profile': () => go('preview'),
     'view-person': async (el) => {
@@ -1448,6 +1503,37 @@
       if (!me) return;
       delete me[el.dataset.kind];
       profileChanged(el.dataset.kind === 'avatar' ? 'Photo removed' : 'Header removed');
+    },
+    'edit-bio': () => {
+      state.editingBio = true;
+      render();
+      document.getElementById('set-bio')?.focus();
+    },
+    'cancel-bio': () => {
+      state.editingBio = false;
+      render();
+    },
+    'edit-review': (el) => {
+      state.editingReview = el.dataset.rid;
+      render();
+      document.getElementById(`review-${el.dataset.rid}`)?.focus();
+    },
+    'cancel-review': () => {
+      state.editingReview = null;
+      render();
+    },
+    'remove-review-photo': (el) => {
+      const me = owner();
+      const r = me?.reviews?.[el.dataset.rid];
+      if (!r) return;
+      r.photos = arr(r.photos).filter((_, i) => i !== Number(el.dataset.i));
+      profileChanged('Photo removed');
+    },
+    'remove-phone': () => {
+      const me = owner();
+      if (!me) return;
+      delete me.phone;
+      profileChanged('Phone number removed');
     },
     'set-visibility': (el) => {
       const me = owner();
@@ -1578,8 +1664,8 @@
     loved: (el) => {
       const rid = el.dataset.rid;
       if (!signedIn()) {
-        toast('Log in or create an account to save favorites.', {
-          label: 'Log in',
+        toast('Sign in or create an account to save favorites.', {
+          label: 'Sign in',
           run: () => {
             state.returnView = 'results';
             startAuth('login', () => go('results'));
@@ -1686,6 +1772,29 @@
     if (fn) fn(el);
   });
   const FORMS = {
+    bio: () => {
+      const me = owner();
+      me.bio = document.getElementById('set-bio').value.trim().slice(0, 160);
+      if (!me.bio) delete me.bio;
+      state.editingBio = false;
+      profileChanged(me.bio ? 'Bio saved' : 'Bio removed');
+    },
+    review: (form) => {
+      const me = owner();
+      const rid = form.dataset.rid;
+      const text = form.querySelector('textarea').value.trim().slice(0, 500);
+      me.reviews = { ...(me.reviews || {}) };
+      me.reviews[rid] = { ...(me.reviews[rid] || {}), text };
+      state.editingReview = null;
+      profileChanged(text ? 'Review saved' : 'Review cleared');
+    },
+    phone: () => {
+      const me = owner();
+      const digits = document.getElementById('set-phone').value.replace(/\D/g, '');
+      if (digits.length < 10 || digits.length > 15) return toast('Add a full phone number, like (916) 555-0123.');
+      me.phone = digits;
+      profileChanged('Phone number saved');
+    },
     username: () => {
       const me = owner();
       const name = document.getElementById('set-name').value.trim();
@@ -1724,7 +1833,7 @@
     const handler = FORMS[e.target.dataset?.form];
     if (!handler) return;
     e.preventDefault();
-    handler();
+    handler(e.target);
   });
 
   document.addEventListener('change', async (e) => {
@@ -1733,8 +1842,18 @@
     const me = owner();
     if (!me) return;
     try {
-      me[input.dataset.kind] = await resizeImage(input.files[0], input.dataset.kind);
-      profileChanged(input.dataset.kind === 'avatar' ? 'Photo updated' : 'Header updated');
+      const kind = input.dataset.kind;
+      const image = await resizeImage(input.files[0], kind);
+      if (kind === 'review') {
+        const rid = input.dataset.rid;
+        me.reviews = { ...(me.reviews || {}) };
+        const r = { ...(me.reviews[rid] || {}) };
+        r.photos = [...arr(r.photos), image].slice(0, MAX_REVIEW_PHOTOS);
+        me.reviews[rid] = r;
+        return profileChanged('Photo added');
+      }
+      me[kind] = image;
+      profileChanged(kind === 'avatar' ? 'Photo updated' : 'Header updated');
     } catch (err) {
       toast(err.message);
     }
