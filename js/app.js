@@ -158,7 +158,7 @@
     return { ...profile, id: newId() };
   }
 
-  /** Clean up a profile that came from someone else (a code or a nearby diner). */
+  /** Clean up a profile that came from someone else (from their code). */
   function normalizeShared(data) {
     if (!data || typeof data.name !== 'string' || !data.name.trim()) return null;
     const pick = (v, allowed) => (allowed.includes(v) ? v : undefined);
@@ -198,6 +198,32 @@
 
   const pct = (x) => Math.round(x * 100);
   const VENUE_WORD = { restaurant: 'Sit-down', casual: 'Casual', cafe: 'Café', pub: 'Pub' };
+
+  // The feel of the room: the researched description where we have one (region-data `look`),
+  // otherwise what the listing tells us (kind of place, how lively it usually is, and listed
+  // features such as views, a patio or live music). Nothing is invented.
+  const VIBE_ROOM = {
+    restaurant: 'sit-down dining room',
+    casual: 'laid-back, casual spot',
+    cafe: 'easygoing café',
+    pub: 'pub with a bar',
+    bar: 'bar',
+    biergarten: 'beer garden',
+    fast_food: 'quick, casual counter',
+    food_court: 'food hall',
+  };
+  function vibeLine(r) {
+    if (r.look) return r.look;
+    const v = new Set(arr(r.vibes));
+    const look = [v.has('cozy') && 'cozy, intimate', v.has('design') && 'stylish, well-lit'].filter(Boolean).join(' and ');
+    const room = VIBE_ROOM[r.venue] || 'restaurant';
+    const n = r.noise;
+    const sound = n == null ? '' : n <= 0.8 ? 'quiet enough to talk' : n <= 1.3 ? 'light buzz' : 'lively, high energy';
+    const extras = [v.has('views') && 'views', v.has('patio') && 'patio seating', v.has('live_music') && 'live music', v.has('local') && 'local character'];
+    const first = look ? `${look} ${room}` : room;
+    const parts = [first[0].toUpperCase() + first.slice(1), sound, ...extras].filter(Boolean);
+    return parts.join(' · ');
+  }
   const scoreClass = (x) => (x >= 0.7 ? 'score-good' : x >= 0.5 ? 'score-ok' : 'score-bad');
   const names = (list) => (list.length <= 2 ? list.join(' & ') : `${list.slice(0, -1).join(', ')} & ${list.at(-1)}`);
   const owner = () => state.profiles.find((p) => p.owner);
@@ -469,7 +495,6 @@
     shared.code = owner()?.shortCode || null;
     publishShortCode();
     startSocial();
-    syncPresence();
     state.authFlow = null;
     const msg = `${f.mode === 'signup' ? 'Account created' : 'Logged in'}${f.twoFactor ? ' with two-factor on' : ''}`;
     if (f.next) {
@@ -534,7 +559,7 @@
   const VISIBILITY = {
     private: ['Private', 'Only you can see your profile. Friends with your code still get your taste answers for matching.'],
     friends: ['Friends', 'Friends you connect with, and people you share your code with, can see your profile.'],
-    public: ['Public', 'You show up under Nearby, and anyone with the app open can see your profile.'],
+    public: ['Public', 'Anyone who finds you on FoodieMatch can see your profile.'],
   };
   const visibility = (p) => (VISIBILITY[p?.visibility] ? p.visibility : 'private'); // private by default
   // Phone numbers stay hidden from others until someone chooses to show theirs.
@@ -857,10 +882,9 @@
     });
   }
 
-  /** Something others might see changed: update Nearby and your code's card. */
+  /** Something others might see changed: update your code's card. */
   function profileChanged(message) {
     const ok = saveProfiles();
-    syncPresence();
     publishShortCode();
     render();
     if (!ok) toast('Couldn’t save that on this device. Try a smaller image.');
@@ -999,15 +1023,11 @@
           <h2>Who’s joining you?</h2>
         </div>
         ${myCodeRow(me)}
-        ${live.room && shared.db
-          ? `<button class="switch" role="switch" aria-checked="${!!state.openTable}" data-action="toggle-open-table"><span>Let people nearby join</span><span class="knob" aria-hidden="true"></span></button>`
-          : ''}
         ${tableFriendsHtml()}
         ${friends.length ? `<div class="card list">${friends.map(dinerRow).join('')}</div>` : ''}
-        <div id="nearby" class="stack" hidden></div>
         <div class="add-grid">
           <button data-action="add-here">Add someone here<span class="hint">They take the quiz on this phone</span></button>
-          <button data-action="open-join">Join a friend’s table<span class="hint">With a join code or nearby</span></button>
+          <button data-action="open-join">Join a friend’s table<span class="hint">With their join code</span></button>
         </div>
       </section>
 
@@ -1016,7 +1036,6 @@
           ${joining.length ? `Find a table for ${joining.length + 1}` : 'Just me. Show my picks'}
         </button>
       </div>`;
-    renderNearby();
   }
 
   function saveQuizDraft() {
@@ -1209,6 +1228,7 @@
             <span class="rank">#${i + 1}</span> <h3 style="display:inline">${esc(r.name)}</h3>
             <div class="small muted">${esc(meta.join(' · '))}</div>
             ${r.address ? `<div class="small muted">${esc(r.address)}</div>` : ''}
+            <div class="vibe small"><span class="vibe-label">Vibe</span> ${esc(vibeLine(r))}</div>
             ${r.blurb ? `<div class="small">${esc(r.blurb)}</div>` : ''}
           </div>
           <div class="match"><strong>${pct(res.score)}%</strong><span class="small muted">match</span></div>
@@ -1375,7 +1395,6 @@
     state.quiz = null;
     saveQuizDraft();
     state.accountDraft = null;
-    syncPresence();
     publishShortCode();
     if (wasNewOwner) state.justFinished = profile.id;
     if (wasNewFriend) toast(`${profile.name} is joining you`);
@@ -1439,7 +1458,6 @@
   function zipLocation(zip) {
     const [lat, lon, town] = REGION.zips[zip];
     state.myTown = town;
-    syncPresence();
     return { lat, lon, label: `${town} (${zip})` };
   }
 
@@ -1498,10 +1516,6 @@
     shared.code = null;
     shared.guestCodeOk = false;
     stopJoins();
-    if (state.openTable) {
-      state.openTable = false;
-      syncPresence();
-    }
     if (!shared.db || !shared.uid) return;
     try {
       const mine = await shared.db.doc(`codes/${shared.uid}`).get();
@@ -1770,126 +1784,8 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Nearby with the app open (live presence, where the host offers a shared room)
-  // ---------------------------------------------------------------------------
-
-  const live = { room: null, peers: [], tables: [] };
-
-  // Only public profiles appear under Nearby: first name, taste answers, last ZIP town and the
-  // visible parts of the profile card (no images). Never coordinates.
-  function myPresence() {
-    const me = owner();
-    // "Let people nearby join": your username and join code, nothing else, until you turn it off.
-    const table = me && state.openTable && shared.code ? { name: me.name, code: shared.code } : null;
-    if (!me || !signedIn() || visibility(me) !== 'public') return { profile: null, town: null, card: null, table };
-    const { favorites, ...profile } = Object.fromEntries(SHARE_FIELDS.map((k) => [k, me[k] ?? null]));
-    return { profile, town: state.myTown || null, card: publicCard(me, { images: false, maxFavorites: 6 }), table };
-  }
-
-  function syncPresence() {
-    live.room?.presence(myPresence()).catch(() => {});
-  }
-
-  async function connectRoom() {
-    if (!window.claude?.use) return; // running as a plain web page: no shared room
-    const room = await window.claude.use('room').catch(() => null);
-    if (!room) return;
-    live.room = room;
-    syncPresence();
-    room.onPeers(
-      ({ peers }) => {
-        const others = peers.filter((p) => !p.isMe && p.kind === 'viewer');
-        live.tables = others
-          .map((p) => p.presence?.table)
-          .filter((t) => t && typeof t.name === 'string' && t.name.trim() && /^\d{6}$/.test(t.code) && t.code !== shared.code)
-          .map((t) => ({ name: t.name.trim().slice(0, 40), code: t.code }));
-        if (state.view === 'join' && !document.activeElement?.matches('input')) render();
-        live.peers = others
-          .map((p) => ({
-            peer: p.peer,
-            uid: p.by || null,
-            town: typeof p.presence?.town === 'string' ? p.presence.town.slice(0, 40) : null,
-            profile: normalizeShared(p.presence?.profile),
-            card: normalizeCard(p.presence?.card),
-          }))
-          .filter((p) => p.profile);
-        refreshLinkedFriends();
-        renderNearby();
-      },
-      () => {
-        live.room = null;
-        live.peers = [];
-        live.tables = [];
-        renderNearby();
-      },
-    );
-  }
-
-  /** Keep added nearby diners current if they update their answers. */
-  function refreshLinkedFriends() {
-    let changed = false;
-    for (const p of live.peers) {
-      const friend = state.profiles.find((f) => f.peer === p.peer);
-      if (!friend) continue;
-      const next = { ...friend, ...p.profile, id: friend.id, peer: p.peer, card: p.card, favorites: friend.favorites, visited: friend.visited };
-      if (JSON.stringify(next) !== JSON.stringify(friend)) {
-        Object.assign(friend, next);
-        changed = true;
-      }
-    }
-    if (changed) {
-      saveProfiles();
-      if (state.view === 'table') render();
-    }
-  }
-
-  function renderNearby() {
-    const el = document.getElementById('nearby');
-    if (!el) return;
-    const examples = exampleNearby();
-    if ((!live.room && !examples.length) || !owner()) {
-      el.hidden = true;
-      return;
-    }
-    el.hidden = false;
-    const myTown = state.myTown;
-    const byTown = (a, b) => (b.town === myTown) - (a.town === myTown) || a.profile.name.localeCompare(b.profile.name);
-    const peers = [...[...live.peers].sort(byTown), ...examples];
-    const row = (p) => {
-      const added = state.profiles.some((f) => f.peer === p.peer);
-      return `
-        <div class="diner">
-          <span class="dot" aria-hidden="true"></span>
-          <div class="who">
-            <strong>${esc(p.profile.name)}</strong>${p.town ? ` <span class="small muted">· ${esc(p.town)}</span>` : ''}${p.example ? ' <span class="tag">example</span>' : ''}
-            <div class="small muted">${esc(profileSummary(p.profile))}</div>
-          </div>
-          <div class="actions">
-            ${p.card ? `<button class="ghost small" data-action="view-nearby" data-peer="${esc(p.peer)}">Profile</button>` : ''}
-            ${added
-              ? '<span class="small muted joined">Joining</span>'
-              : `<button class="small" data-action="add-nearby" data-peer="${esc(p.peer)}">Add</button>`}
-          </div>
-        </div>`;
-    };
-    el.innerHTML = `
-      <h3 class="eyebrow">Nearby with the app open</h3>
-      ${peers.length
-        ? `<div class="card list">${peers.map(row).join('')}</div>`
-        : '<p class="small muted">No one else here yet. Share FoodieMatch and they’ll show up.</p>'}`;
-  }
-
-  /** Example test users shown under Nearby in previews, so group picks can be tried alone. */
-  function exampleNearby() {
-    if (!DEMO_ONLY) return [];
-    return (REGION.testUsers || []).map((t) => ({
-      peer: t.peer, uid: t.peer, town: t.town, example: true, profile: normalizeShared(t.profile), card: normalizeCard(t.card),
-    }));
-  }
-
-  // ---------------------------------------------------------------------------
-  // Joining a table: enter someone's join code (or tap their table under Tables nearby) and
-  // you're both at the same table. You write joins/<your id> (only you can) with their code
+  // Joining a table: enter someone's join code and you're both at the same
+  // table (the same match session). You write joins/<your id> (only you can) with their code
   // and your taste answers; their phone adds you. A join lasts 12 hours.
   // ---------------------------------------------------------------------------
 
@@ -1898,48 +1794,21 @@
   const joins = { code: null, stop: null };
   state.joinedCode = loadJSON('sessionStorage', JOINED_KEY);
 
-  /** Open tables nearby, plus two example tables in previews. */
-  function nearbyTables() {
-    const examples = DEMO_ONLY
-      ? (REGION.testUsers || []).filter((t) => t.card).map((t) => ({ name: t.profile.name, town: t.town, peer: t.peer }))
-      : [];
-    return [...(live.tables || []), ...examples];
-  }
-
-  function exampleHost(peer) {
-    const t = (REGION.testUsers || []).find((x) => x.peer === peer);
-    return t && { ...normalizeShared(t.profile), id: newId(), peer: t.peer, uid: t.peer, card: normalizeCard(t.card) };
-  }
-
   function renderJoin() {
-    const tables = nearbyTables();
-    const row = (t) => `
-      <div class="diner">
-        <span class="dot" aria-hidden="true"></span>
-        <div class="who"><strong>${esc(t.name)}’s table</strong>${t.town ? ` <span class="small muted">· ${esc(t.town)}</span>` : ''}${t.peer ? ' <span class="tag">example</span>' : ''}</div>
-        ${t.code && t.code === state.joinedCode
-          ? '<span class="small muted joined">Joined</span>'
-          : `<button class="small" data-action="join-nearby" ${t.peer ? `data-peer="${esc(t.peer)}"` : `data-code="${esc(t.code)}"`}>Join</button>`}
-      </div>`;
     $app.innerHTML = `
       <section class="stack">
         <h1>Join a table</h1>
-        <form class="stack" data-form="join" novalidate>
+        <form id="join-form" class="stack" data-form="join" novalidate>
           <label for="join-code"><strong>Join code</strong></label>
           <input type="text" id="join-code" inputmode="numeric" autocomplete="off" placeholder="6-digit code" />
-          <p class="small muted">Ask whoever started the table for their code.</p>
-          <div><button class="primary" type="submit">Join</button></div>
+          <p class="small muted">Ask whoever started the table for their code. You’ll both get the same picks.</p>
         </form>
-      </section>
-      <section class="stack">
-        <h2 class="eyebrow">Tables nearby</h2>
-        ${tables.length
-          ? `<div class="card list">${tables.map(row).join('')}</div>`
-          : '<p class="small muted">No open tables nearby right now. A join code works from anywhere.</p>'}
       </section>
       <div class="actionbar">
         <button class="ghost" data-action="join-back">← Back</button>
+        <button class="primary" type="submit" form="join-form">Join</button>
       </div>`;
+    document.getElementById('join-code').focus();
   }
 
   /** Sit at someone's table: they join yours on this phone, and you join theirs on their phone. */
@@ -2054,28 +1923,9 @@
     },
     'to-account': () => go('account'),
     'open-join': () => go('join'),
-    'join-nearby': async (el) => {
-      if (el.dataset.peer) return joinTable(exampleHost(el.dataset.peer), { send: false });
-      try {
-        await joinTable(await lookupShortCode(el.dataset.code));
-      } catch (err) {
-        toast(err.message);
-      }
-    },
     'join-back': () => {
       state.pendingJoin = null;
       go(owner() ? 'table' : 'welcome');
-    },
-    'toggle-open-table': async () => {
-      if (!state.openTable && !shared.code) {
-        shared.guestCodeOk = true;
-        await publishShortCode();
-        if (!shared.code) return toast('Couldn’t make a code just now. Try again in a moment.');
-      }
-      state.openTable = !state.openTable;
-      syncPresence();
-      render();
-      toast(state.openTable ? 'People nearby can join your table' : 'Your table is hidden from Nearby');
     },
     'continue-guest': () => {
       state.auth = { guest: true };
@@ -2110,7 +1960,6 @@
       state.outcome = null;
       unpublishShortCode(); // nothing about you stays shared while you're signed out
       leaveJoin();
-      syncPresence();
       go('welcome');
       toast('Signed out');
     },
@@ -2169,13 +2018,6 @@
           /* show what we have */
         }
       }
-    },
-    'view-nearby': (el) => {
-      const p = [...live.peers, ...exampleNearby()].find((x) => x.peer === el.dataset.peer);
-      if (!p) return;
-      state.personId = null;
-      state.personLive = { card: p.card, name: p.profile.name, uid: p.uid || null };
-      go('person');
     },
     'remove-image': (el) => {
       const me = owner();
@@ -2320,16 +2162,6 @@
       render();
     },
     'add-here': () => startQuiz(null),
-    'add-nearby': (el) => {
-      const p = [...live.peers, ...exampleNearby()].find((x) => x.peer === el.dataset.peer);
-      if (!p || state.profiles.some((f) => f.peer === p.peer)) return;
-      const friend = { ...p.profile, id: newId(), peer: p.peer, card: p.card };
-      state.profiles.push(friend);
-      state.selected.add(friend.id);
-      saveProfiles();
-      toast(`${friend.name} is joining you`);
-      render();
-    },
     reset: () => {
       if (state.confirmRemove !== 'reset') {
         state.confirmRemove = 'reset';
@@ -2354,7 +2186,6 @@
       saveJSON('sessionStorage', HIDDEN_KEY, null);
       saveJSON('sessionStorage', PASSED_KEY, null);
       saveProfiles();
-      syncPresence();
       go('welcome');
     },
     toggle: (el) => {
@@ -2624,6 +2455,5 @@
   });
 
   render();
-  connectRoom();
   connectStore();
 })();

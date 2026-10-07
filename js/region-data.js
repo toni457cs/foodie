@@ -188,7 +188,7 @@
       }),
       place("Scott's Seafood Roundhouse", ['seafood', 'american'], 'Historic District', 'sutter', 'restaurant'),
       place("Riley's on Sutter", ['american'], 'Sutter St', 'sutter', 'restaurant'),
-      place('Hacienda Del Rio', ['mexican'], 'Sutter St', 'sutter', 'restaurant'),
+      place('Hacienda Real Mexican Grill', ['mexican'], 'Sutter St', 'sutter', 'restaurant'),
       place('The Fat Rabbit Public House', ['pub', 'american'], 'Sutter St', 'sutter', 'pub', {
         blurb: 'Comfortable local pub.',
       }),
@@ -206,9 +206,6 @@
       }),
       place('Taj Grill Indian Cuisine', ['indian'], '9500 Greenback Ln, Ste 33', 'greenbackWest', 'restaurant'),
       place('Mexquite Mexican Cuisine', ['mexican'], '25095 Blue Ravine Rd', 'blueRavineEast', 'restaurant'),
-      place('Back Wine Bar', ['american'], '25075 Blue Ravine Rd, #150', 'blueRavineEast', 'restaurant', {
-        noise: 0.8, goodFor: ['partner', 'friends', 'coworkers'],
-      }),
       place('Curry Club Indian Bistro', ['indian'], '196 Blue Ravine Rd', 'blueRavineWest', 'restaurant'),
       place('Back Bistro', ['american'], 'Palladio', 'palladio', 'restaurant', {
         noise: 0.8, goodFor: ['partner', 'friends', 'coworkers'],
@@ -233,7 +230,6 @@
         goodFor: ['family', 'friends', 'coworkers'],
       }),
       place('Islands', ['american'], '2455 Iron Point Rd', 'ironPoint', 'casual'),
-      place('Taqueria Los Cerros', ['mexican'], '2405 Iron Point Rd, Ste 120', 'ironPoint', 'casual'),
       place('IHOP', ['brunch', 'american'], '2525 Iron Point Rd', 'ironPoint', 'casual', { goodFor: ['solo', 'family', 'friends'] }),
       place('Mylapore', ['indian', 'vegetarian'], '1760 Prairie City Rd, Ste 160', 'prairieCity', 'casual', {
         blurb: 'South Indian vegetarian.',
@@ -251,14 +247,12 @@
       place('The Rind', ['american'], '1801 L St, #40', 'midtownJ', 'restaurant', { goodFor: ['partner', 'friends'] }),
       place('Iron Horse Tavern', ['pub', 'american'], '1800 15th St', 'midtownJ', 'pub'),
       place('Fox & Goose Public House', ['pub', 'brunch'], '1001 R St', 'rStreet', 'pub'),
-      place('TableVine', ['american'], '1501 14th St', 'downtown', 'restaurant'),
       place("Vallejo's Restaurant", ['mexican'], '1900 4th St', 'southside', 'restaurant'),
       place('Ella Dining Room & Bar', ['american'], '1131 K St', 'downtown', 'restaurant', {
         noise: 0.8, vibes: ['design'], goodFor: ['partner', 'coworkers', 'friends'],
       }),
       place('Grange', ['american'], '926 J St', 'downtown', 'restaurant', { goodFor: ['partner', 'coworkers', 'friends'] }),
       place('Octopus Peru', ['seafood'], '980 9th St, Ste 170', 'downtown', 'restaurant', { blurb: 'Peruvian seafood.' }),
-      place('Citizen Capitol Craft House', ['american'], '1201 J St, #111', 'downtown', 'restaurant'),
 
       // ---- Roseville & Rocklin
       place('Nixtaco', ['mexican'], '1805 Cirby Way, #12', 'rosevilleCirby', 'casual'),
@@ -306,7 +300,6 @@
       place('South Fork Grille', ['american'], '4364 Town Center Blvd, Ste 124', 'edhTownCenter', 'restaurant', {
         vibes: ['views'], blurb: 'Waterfront views.',
       }),
-      place("OBO' Italian Table & Bar", ['italian'], '4370 Town Center Blvd, Ste 120', 'edhTownCenter', 'restaurant'),
       place('Native + Nomad', ['american'], '4355 Town Center Blvd, #114', 'edhTownCenter', 'restaurant'),
       place('Thai Paradise', ['thai'], '4361 Town Center Blvd, #110', 'edhTownCenter', 'restaurant'),
       place("C. Knight's Steakhouse", ['steak'], '2085 Vine St', 'edhTownCenter', 'restaurant', {
@@ -317,7 +310,7 @@
       // ---- Davis
       place('Cafe Bernardo', ['brunch', 'cafe'], '234 D St', 'davisDowntown', 'cafe'),
       place('Dumpling House', ['chinese'], '129 E St', 'davisDowntown', 'casual'),
-      place('Yakitori Yuchan', ['japanese'], '109 E St', 'davisDowntown', 'restaurant', { blurb: 'Yakitori izakaya.' }),
+      place('Yuchan Shokudo', ['japanese'], '109 E St', 'davisDowntown', 'casual', { blurb: 'Yakitori nights once a month.' }),
       place("Sam's Mediterranean Cuisine", ['mediterranean'], '301 B St', 'davisDowntown', 'casual'),
       place('Bistro Thirty Three', ['cafe', 'american'], '226 F St', 'davisDowntown', 'restaurant', {
         vibes: ['patio'], blurb: 'French bistro, big patio.',
@@ -333,6 +326,84 @@
       place("Fabian's Italian Bistro", ['italian'], null, 'fairOaks', 'restaurant', { blurb: 'Half-price wine Wednesdays.' }),
     ],
   };
+
+  // The feel of each room, summarized from reviews, listings and local press (OpenTable,
+  // Visit Placer, Inside Sacramento, Sacramento News & Review, Michelin), October 2026.
+  // `look` is the "Vibe" line on result cards; added vibes (patio, live music, design…) also
+  // feed matching. Places without a reliable description show only the venue type.
+  const AMBIENCE = {
+    'folsom-chicago-fire': { look: 'Bustling family pizza house' },
+    'folsom-scott-s-seafood-roundhouse': { look: 'Casual-elegant room with local art', vibes: ['local'] },
+    'folsom-riley-s-on-sutter': { look: 'Rustic, relaxed spot facing Sutter St', vibes: ['patio'] },
+    'folsom-hacienda-real-mexican-grill': { look: 'Upstairs cantina overlooking old-town Folsom', vibes: ['views'] },
+    'folsom-the-fat-rabbit-public-house': { look: 'British-style pub, wood and brass; order at the bar', vibes: ['cozy'] },
+    'folsom-catherine-s-cr-perie': { look: 'Weekend crêpe counter in the historic train depot', vibes: ['local'] },
+    'folsom-nara-sushi': { look: 'Modern, clean sushi room' },
+    'folsom-mexquite-mexican-cuisine': { look: 'Festive room with a tequila lounge', vibes: ['patio'] },
+    'folsom-chops-restaurant': { look: 'Casual-elegant steakhouse with a lively bar' },
+    'folsom-petra-greek': { look: 'Order-at-the-counter Greek café', vibes: ['patio'] },
+    'folsom-mas-taco-bar': { look: 'Relaxed taco and margarita bar' },
+    'folsom-pier-50-sushi': { look: 'Modern, welcoming all-you-can-eat sushi' },
+    'folsom-bj-s-restaurant-brewhouse': { look: 'Big brewhouse with booths and TVs' },
+    'folsom-lazy-dog-restaurant-bar': { look: 'Mountain-lodge style room', vibes: ['patio'] },
+    'folsom-fat-s-asia-bistro': { look: 'Palace-inspired room: mahogany, red tile, plants', vibes: ['design'] },
+    'folsom-folsom-thai-cuisine': { look: 'Calm, family-friendly dining room' },
+    'folsom-olive-garden-italian-restaurant': { look: 'Tuscan farmhouse-style family dining room' },
+    'folsom-johnny-rockets': { look: 'Retro 1950s diner with counter stools' },
+    'folsom-islands': { look: 'Laid-back surf-themed burger spot' },
+    'folsom-ihop': { look: 'Bright, easygoing family diner' },
+    'folsom-mylapore': { look: 'Simple South Indian tiffin spot', vibes: ['patio'] },
+    'sacramento-petra-greek': { look: 'Order-at-the-counter Greek café' },
+    'sacramento-tank-house-bbq': { look: 'Backyard-style BBQ bar by an 1881 water tank', vibes: ['patio', 'local'] },
+    'sacramento-tres-hermanas': { look: 'Colorful, festive family cantina', vibes: ['patio'] },
+    'sacramento-paragary-s': { look: 'Garden patio with olive trees, waterfalls and a fireplace', vibes: ['design'] },
+    'sacramento-centro-cocina-mexicana': { look: 'Colorful room under star lanterns, big tequila bar', vibes: ['design', 'patio'] },
+    'sacramento-tapa-the-world': { look: 'Warm tapas room, Spanish guitar many evenings', vibes: ['patio', 'live_music'] },
+    'sacramento-the-rind': { look: 'Small, warm cheese bar; sit with the cheesemongers', vibes: ['cozy'] },
+    'sacramento-iron-horse-tavern': { look: 'Railroad-industrial tavern: copper bar, tufted booths', vibes: ['design', 'patio'] },
+    'sacramento-fox-goose-public-house': { look: 'Traditional English pub with cozy booths', vibes: ['cozy', 'live_music'] },
+    'sacramento-vallejo-s-restaurant': { look: 'Homey, casual Mexican spot' },
+    'sacramento-ella-dining-room-bar': { look: 'White-and-cream room with antique wood, rustic and refined' },
+    'sacramento-grange': { look: 'Two-story hotel dining room, high ceilings, leather banquettes', vibes: ['design'] },
+    'sacramento-octopus-peru': { look: 'Relaxed, polished cevichería' },
+    'roseville-nixtaco': { look: 'Small taqueria with murals and an open kitchen', vibes: ['local'] },
+    'roseville-q1227-restaurant': { look: 'Warm, cozy room with live jazz', vibes: ['cozy', 'live_music', 'patio'] },
+    'roseville-la-huaca': { look: 'Warm, contemporary Peruvian room', vibes: ['patio'] },
+    'roseville-paul-martin-s-american-grill': { look: 'Polished, dimly lit grill with a heated patio lounge', vibes: ['patio'] },
+    'roseville-range-kitchen-tap': { look: 'Stylish monochrome dining room', vibes: ['design'] },
+    'roseville-la-popular': { look: 'Hip, modern Mexico City-style spot', vibes: ['design', 'patio'] },
+    'roseville-the-place': { look: 'Cozy Italian bar with wood-fired pizza', vibes: ['cozy'] },
+    'roseville-four-sisters-cafe': { look: 'Warm, homey breakfast café with booths', vibes: ['patio'] },
+    'roseville-fat-s-asia-bistro': { look: 'Bright room with palm trees and a see-through fireplace', vibes: ['design'] },
+    'roseville-zocalo': { look: 'Lively, stylish cantina; patio with string lights', vibes: ['patio'] },
+    'rocklin-mezcalito-oaxacan-cuisine': { look: 'Casual Oaxacan spot', vibes: ['patio'] },
+    'rocklin-rubino-s-ristorante': { look: 'Cozy family Italian spot with booths', vibes: ['cozy'] },
+    'rocklin-the-chef-s-table': { look: 'Small, lively bistro; book ahead' },
+    'rocklin-lucille-s-smokehouse-bar-b-que': { look: 'Southern roadhouse-style BBQ house' },
+    'elk-grove-boulevard-bistro': { look: 'Intimate dining room in a 1908 bungalow', vibes: ['cozy', 'patio'] },
+    'elk-grove-sheldon-inn': { look: 'Historic country inn with a fire-pit patio', vibes: ['cozy', 'patio'] },
+    'elk-grove-brick-house-restaurant': { look: 'Brick-walled lounge, live music Fri and Sat', vibes: ['live_music', 'patio'] },
+    'elk-grove-palermo': { look: 'Simple, homey family Italian room' },
+    'elk-grove-kobe-steak-sushi': { look: 'Hibachi grills: chefs cook at your table' },
+    'el-dorado-hills-milestone-restaurant-cocktail-bar': { look: 'Rustic-chic room, exposed brick and warm light', vibes: ['design', 'patio'] },
+    'el-dorado-hills-native-nomad': { look: 'Cozy room with tropical plants and relief murals', vibes: ['design'] },
+    'el-dorado-hills-c-knight-s-steakhouse': { look: 'Classic steakhouse: wood panels, tufted booths, oak bar', vibes: ['cozy'] },
+    'el-dorado-hills-the-mimosa-house': { look: 'Buzzy brunch bar' },
+    'davis-cafe-bernardo': { look: 'Brasserie-style café, counter or table service' },
+    'davis-dumpling-house': { look: 'Busy, homey spot in a converted house' },
+    'davis-yuchan-shokudo': { look: 'Cozy Japanese spot with paper lanterns; order at the counter' },
+    'davis-sam-s-mediterranean-cuisine': { look: 'Family-run café with a quiet deck', vibes: ['patio'] },
+    'davis-manna-korean-restaurant': { look: 'Small, low-key Korean spot' },
+    'citrus-heights-black-angus-steakhouse': { look: 'Classic Western-style steakhouse with booths' },
+    'fair-oaks-shangri-la': { look: 'Midcentury resort-style patio with fire pits and bocce', vibes: ['design'] },
+    'fair-oaks-fabian-s-italian-bistro': { look: 'Cozy, intimate neighborhood bistro', vibes: ['cozy', 'patio'] },
+  };
+  for (const r of REGION.restaurants) {
+    const a = AMBIENCE[r.id];
+    if (!a) continue;
+    r.look = a.look;
+    if (a.vibes) r.vibes = [...new Set([...r.vibes, ...a.vibes])];
+  }
 
   if (typeof module === 'object' && module.exports) module.exports = REGION;
   else root.FOODIE_REGION = REGION;

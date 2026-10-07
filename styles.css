@@ -425,3 +425,7 @@ label.btn { cursor: pointer; }
 
 /* Small label beside example (test) users and tables */
 .tag { display: inline-block; margin-left: 4px; padding: 0 8px; border-radius: 999px; background: var(--surface-2); color: var(--text); font-size: 12px; line-height: 20px; vertical-align: 1px; }
+
+/* "Vibe" line on result cards: the feel of the room */
+.vibe { margin-top: 4px; color: var(--text); }
+.vibe-label { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); margin-right: 4px; }
