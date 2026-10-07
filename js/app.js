@@ -235,7 +235,7 @@
         <h1>Many cravings. One table.</h1>
       </section>
       <div class="actionbar stacked">
-        <button class="primary block" data-action="auth-start" data-mode="login">Sign up / Log in</button>
+        <button class="primary block" data-action="auth-start" data-mode="login">Login/Sign Up</button>
         <button class="ghost block" data-action="continue-guest">Continue as guest</button>
       </div>`;
   }
@@ -715,7 +715,7 @@
             </form>`
           : ''}`
       : `<p class="small muted">Sign up or log in to add an email, a password and two-factor authentication.</p>
-        <div><button class="small" data-action="auth-start" data-mode="login">Sign up / Log in</button></div>`;
+        <div><button class="small" data-action="auth-start" data-mode="login">Login/Sign Up</button></div>`;
     $app.innerHTML = `
       <section><h1>Settings</h1></section>
 
@@ -800,7 +800,7 @@
     else if (message) toast(message);
   }
 
-  /** The same person icon on every screen; one "Sign up / Log in" button beside it until you're logged in. */
+  /** The same person icon on every screen; one "Login/Sign Up" button beside it until you're logged in. */
   function renderTopbar() {
     const area = document.getElementById('me-area');
     if (!area) return;
@@ -812,7 +812,7 @@
       return;
     }
     const icon = owner() ? profileBtn : `<button class="me-btn" data-action="sign-in" data-mode="login" aria-label="Sign up or log in">${PERSON_ICON}</button>`;
-    area.innerHTML = `<button class="signin-link" data-action="sign-in" data-mode="login">Sign up / Log in</button>${icon}`;
+    area.innerHTML = `<button class="signin-link" data-action="sign-in" data-mode="login">Login/Sign Up</button>${icon}`;
   }
 
   function dinerRow(p) {
@@ -840,7 +840,7 @@
       return `<section class="card stack">
         <h2>Your favorites</h2>
         <p class="small muted">Sign up or log in to save places, rate them and write reviews.</p>
-        <div><button class="small" data-action="auth-start" data-mode="login">Sign up / Log in</button></div>
+        <div><button class="small" data-action="auth-start" data-mode="login">Login/Sign Up</button></div>
       </section>`;
     }
     const saved = me.saved || {};

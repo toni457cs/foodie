@@ -403,3 +403,22 @@ label.btn { cursor: pointer; }
 .quiz-top { align-items: center; }
 .quiz-top .eyebrow { margin: 0; }
 .quiz-top .ghost { min-height: 36px; }
+
+/* Logo: two overlapping plates (sage and wine), two tastes meeting at one table */
+.brand { display: inline-flex; align-items: center; gap: 8px; }
+.logo { width: 38px; height: 26px; flex: none; }
+.logo circle { fill: none; stroke-width: 2.3; }
+.logo .logo-a { stroke: var(--accent); }
+.logo .logo-b { stroke: var(--wine); }
+
+/* Bigger person icon */
+.me-btn { min-height: 48px; min-width: 48px; }
+.person-icon { width: 32px; height: 32px; stroke-width: 1.5; }
+@media (max-width: 360px) {
+  .topbar { padding-left: 12px; }
+  .brand { gap: 6px; font-size: 1.05rem; }
+  .logo { width: 30px; height: 21px; }
+  .signin-link { padding: 0 4px; font-size: 0.82rem; }
+  .me-btn { min-width: 44px; }
+  .person-icon { width: 28px; height: 28px; }
+}
