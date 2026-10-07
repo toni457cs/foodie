@@ -398,3 +398,5 @@ label.btn { cursor: pointer; }
 .me-area { right: 6px; gap: 0; }
 .signin-link { padding: 0 8px; font-size: 0.9rem; white-space: nowrap; }
 .signin-link.signup { color: var(--accent); }
+.auth-toggle { margin: 4px 0 0; }
+.auth-toggle .linkish { font-weight: 500; }

@@ -220,7 +220,7 @@
         <h1>Many cravings. One table.</h1>
       </section>
       <div class="actionbar stacked">
-        <button class="primary block" data-action="auth-start" data-mode="signup">Sign in or create account</button>
+        <button class="primary block" data-action="auth-start" data-mode="login">Sign up / Log in</button>
         <button class="ghost block" data-action="continue-guest">Continue as guest</button>
       </div>`;
   }
@@ -329,7 +329,7 @@
       <form id="auth-form" class="stack" novalidate>
         ${badge}
         <div class="tabs" role="tablist">
-          <button type="button" role="tab" aria-selected="${!signup}" data-action="auth-mode" data-mode="login">Sign in</button>
+          <button type="button" role="tab" aria-selected="${!signup}" data-action="auth-mode" data-mode="login">Log in</button>
           <button type="button" role="tab" aria-selected="${signup}" data-action="auth-mode" data-mode="signup">Sign up</button>
         </div>
         <h1>${signup ? 'Create your account' : 'Welcome back'}</h1>
@@ -339,9 +339,12 @@
           <input type="password" id="auth-pass" autocomplete="${signup ? 'new-password' : 'current-password'}" placeholder="Use a test password" /></div>
         ${signup ? `<label class="check"><input type="checkbox" id="auth-2fa" ${f.twoFactor !== false ? 'checked' : ''} /> Turn on two-factor authentication</label>` : ''}
         <p id="auth-error" class="notice error" hidden></p>
+        <p class="small muted auth-toggle">${signup
+          ? 'Already have an account? <button type="button" class="linkish" data-action="auth-mode" data-mode="login">Log in</button>'
+          : 'New to FoodieMatch? <button type="button" class="linkish" data-action="auth-mode" data-mode="signup">Sign up instead</button>'}</p>
         <div class="actionbar">
           <button class="ghost" type="button" data-action="auth-cancel">← Back</button>
-          <button class="primary" type="submit">${signup ? 'Create account' : 'Sign in'}</button>
+          <button class="primary" type="submit">${signup ? 'Create account' : 'Log in'}</button>
         </div>
       </form>`;
     document.getElementById('auth-email').focus();
@@ -352,7 +355,7 @@
       const err = document.getElementById('auth-error');
       const fail = (msg, switchTo) => {
         err.innerHTML = esc(msg) + (switchTo
-          ? ` <button type="button" class="linkish" data-action="auth-switch" data-mode="${switchTo}">${switchTo === 'login' ? 'Sign in instead' : 'Sign up instead'}</button>`
+          ? ` <button type="button" class="linkish" data-action="auth-switch" data-mode="${switchTo}">${switchTo === 'login' ? 'Log in instead' : 'Sign up instead'}</button>`
           : '');
         err.hidden = false;
       };
@@ -387,7 +390,7 @@
     if (f.claim) registerSelf({ emailHash: f.hash });
     saveJSON('localStorage', AUTH_KEY, state.auth);
     state.authFlow = null;
-    toast(f.twoFactor ? 'Signed in with two-factor on' : 'Signed in');
+    toast(`${f.mode === 'signup' ? 'Account created' : 'Logged in'}${f.twoFactor ? ' with two-factor on' : ''}`);
     if (f.next) return f.next();
     go(owner() ? 'table' : 'account');
   }
@@ -690,8 +693,8 @@
               <div class="row"><button class="primary small" type="submit">Turn on</button><button class="ghost small" type="button" data-action="cancel-2fa">Cancel</button></div>
             </form>`
           : ''}`
-      : `<p class="small muted">Sign in or create an account to add an email, a password and two-factor authentication.</p>
-        <div><button class="small" data-action="auth-start" data-mode="signup">Sign in or create account</button></div>`;
+      : `<p class="small muted">Sign up or log in to add an email, a password and two-factor authentication.</p>
+        <div><button class="small" data-action="auth-start" data-mode="login">Sign up / Log in</button></div>`;
     $app.innerHTML = `
       <section><h1>Settings</h1></section>
 
@@ -733,7 +736,7 @@
       <section class="card stack">
         <h2>Session</h2>
         <div class="row">
-          ${signedIn() ? `<span class="small muted">${esc(state.auth.email)}</span><button class="ghost small" data-action="log-out">Sign out</button>` : ''}
+          ${signedIn() ? `<span class="small muted">${esc(state.auth.email)}</span><button class="ghost small" data-action="log-out">Log out</button>` : ''}
           <button class="ghost small" data-action="reset">${state.confirmRemove === 'reset' ? 'Tap again to delete session' : 'Delete session'}</button>
         </div>
       </section>
@@ -776,7 +779,7 @@
     else if (message) toast(message);
   }
 
-  /** The same person icon on every screen; "Sign in" beside it until you're signed in. */
+  /** The same person icon on every screen; one "Sign up / Log in" button beside it until you're logged in. */
   function renderTopbar() {
     const area = document.getElementById('me-area');
     if (!area) return;
@@ -787,9 +790,8 @@
       area.innerHTML = profileBtn;
       return;
     }
-    const icon = owner() ? profileBtn : `<button class="me-btn" data-action="sign-in" data-mode="login" aria-label="Sign in">${PERSON_ICON}</button>`;
-    area.innerHTML = `<button class="signin-link" data-action="sign-in" data-mode="login">Sign in</button>
-      <button class="signin-link signup" data-action="sign-in" data-mode="signup">Sign up</button>${icon}`;
+    const icon = owner() ? profileBtn : `<button class="me-btn" data-action="sign-in" data-mode="login" aria-label="Sign up or log in">${PERSON_ICON}</button>`;
+    area.innerHTML = `<button class="signin-link" data-action="sign-in" data-mode="login">Sign up / Log in</button>${icon}`;
   }
 
   function dinerRow(p) {
@@ -816,8 +818,8 @@
     if (!signedIn()) {
       return `<section class="card stack">
         <h2>Your favorites</h2>
-        <p class="small muted">Sign in to save places, rate them and write reviews.</p>
-        <div><button class="small" data-action="auth-start" data-mode="login">Sign in</button></div>
+        <p class="small muted">Sign up or log in to save places, rate them and write reviews.</p>
+        <div><button class="small" data-action="auth-start" data-mode="login">Sign up / Log in</button></div>
       </section>`;
     }
     const saved = me.saved || {};
@@ -1739,7 +1741,7 @@
       state.twoFaSetup = null;
       state.auth = { guest: true };
       saveJSON('localStorage', AUTH_KEY, state.auth);
-      toast('Signed out');
+      toast('Logged out');
       render();
     },
     rate: (el) => {
@@ -1762,7 +1764,7 @@
       render();
     },
     'open-profile': () => (owner() ? go('profile') : signedIn() ? go('account') : actions['sign-in']()),
-    // Sign in from any step, then come back to it.
+    // Sign up or log in from any step, then come back to it.
     'sign-in': (el) => {
       const mode = el?.dataset?.mode === 'signup' ? 'signup' : 'login';
       if (state.view === 'auth') {
@@ -2019,8 +2021,8 @@
     loved: (el) => {
       const rid = el.dataset.rid;
       if (!signedIn()) {
-        toast('Sign in or create an account to save favorites.', {
-          label: 'Sign in',
+        toast('Sign up or log in to save favorites.', {
+          label: 'Log in',
           run: () => {
             state.returnView = 'results';
             startAuth('login', () => go('results'));
