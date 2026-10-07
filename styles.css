@@ -404,7 +404,7 @@ label.btn { cursor: pointer; }
 .logo { width: 38px; height: 26px; flex: none; }
 .logo circle { fill: none; stroke-width: 2.3; }
 .logo .logo-a { stroke: var(--accent); }
-.logo .logo-b { stroke: var(--wine); }
+.logo .logo-b { stroke: var(--accent); }
 
 /* Bigger person icon */
 .me-btn { min-height: 48px; min-width: 48px; }

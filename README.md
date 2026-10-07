@@ -2,7 +2,7 @@
 
 Many cravings. One table.
 
-**Logo:** two overlapping plate rings, one sage and one wine, for two tastes meeting at one table. It sits beside the name in the header, large on the welcome screen, and is the browser-tab icon.
+**Logo:** two overlapping sage plate rings, for two tastes meeting at one table. It sits beside the name in the header, large on the welcome screen, and is the browser-tab icon.
 
 > **Job to be done:** *When selecting a new restaurant, I want to know if there is an environment that aligns with mine and others' needs and interests, so that I can have an enjoyable experience with the group I'm dining with.*
 
