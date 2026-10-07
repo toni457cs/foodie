@@ -400,3 +400,6 @@ label.btn { cursor: pointer; }
 .signin-link.signup { color: var(--accent); }
 .auth-toggle { margin: 4px 0 0; }
 .auth-toggle .linkish { font-weight: 500; }
+.quiz-top { align-items: center; }
+.quiz-top .eyebrow { margin: 0; }
+.quiz-top .ghost { min-height: 36px; }

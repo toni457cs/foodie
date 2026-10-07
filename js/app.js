@@ -20,6 +20,7 @@
   const STORAGE_KEY = 'foodie.profiles.v1';
   const AUTH_KEY = 'foodie.auth.v1'; // prototype sign-in state: email + 2FA flag, never a password
   const HIDDEN_KEY = 'foodie.hidden'; // places swiped away this session
+  const QUIZ_KEY = 'foodie.quizdraft.v1'; // quiz answers in progress, so nothing is lost mid-quiz
   const PASSED_KEY = 'foodie.passed'; // their cuisines, which lower similar matches this session
   const CODE_PREFIX = 'FOODIE1:';
   const $app = document.getElementById('app');
@@ -46,6 +47,16 @@
     state.view = 'table';
     if (!state.auth) state.auth = { guest: true };
   }
+  // Pick up a quiz that was in progress (after a reload, or coming back later).
+  (() => {
+    const draft = loadJSON('localStorage', QUIZ_KEY);
+    if (!draft || !Array.isArray(draft.stepIds) || !draft.answers) return;
+    const steps = draft.stepIds.map((id) => QUIZ.find((q) => q.id === id)).filter(Boolean);
+    if (!steps.length) return;
+    const { stepIds, ...rest } = draft;
+    state.quiz = { ...rest, steps, step: Math.min(Math.max(0, draft.step | 0), steps.length - 1), resumed: true };
+    state.view = 'quiz';
+  })();
 
   // ---------------------------------------------------------------------------
   // Storage & share codes
@@ -56,7 +67,11 @@
       const raw = JSON.parse(localStorage.getItem(STORAGE_KEY));
       if (!Array.isArray(raw)) return [];
       // Dealbreakers can be retired between versions; drop any we no longer offer.
-      return raw.map((p) => ({ ...p, dealbreakers: arr(p.dealbreakers).filter((d) => d in LABELS.dealbreaker) }));
+      // (Runs before the helpers below exist, so no arr() here.)
+      return raw.map((p) => ({
+        ...p,
+        dealbreakers: (Array.isArray(p.dealbreakers) ? p.dealbreakers : []).filter((d) => typeof d === 'string' && d in LABELS.dealbreaker),
+      }));
     } catch {
       return [];
     }
@@ -390,8 +405,14 @@
     if (f.claim) registerSelf({ emailHash: f.hash });
     saveJSON('localStorage', AUTH_KEY, state.auth);
     state.authFlow = null;
-    toast(`${f.mode === 'signup' ? 'Account created' : 'Logged in'}${f.twoFactor ? ' with two-factor on' : ''}`);
-    if (f.next) return f.next();
+    const msg = `${f.mode === 'signup' ? 'Account created' : 'Logged in'}${f.twoFactor ? ' with two-factor on' : ''}`;
+    if (f.next) {
+      f.next();
+      if (state.view === 'quiz' && state.quiz) toast(`${msg}. Your answers are saved.`, { label: 'Start over', run: restartQuiz });
+      else toast(msg);
+      return;
+    }
+    toast(msg);
     go(owner() ? 'table' : 'account');
   }
 
@@ -929,7 +950,30 @@
     renderNearby();
   }
 
+  function saveQuizDraft() {
+    const q = state.quiz;
+    if (!q) return saveJSON('localStorage', QUIZ_KEY, null);
+    const { steps, advancing, resumed, ...rest } = q;
+    saveJSON('localStorage', QUIZ_KEY, { ...rest, stepIds: steps.map((x) => x.id) });
+  }
+
+  const QUIZ_FIELDS = ['cuisines', 'novelty', 'noise', 'dealbreakers', 'maxWait', 'diningWith', 'vibes', 'zip'];
+
+  /** Clear the quiz answers (keeping who you are) and go back to the first question. */
+  function restartQuiz() {
+    const q = state.quiz;
+    if (!q) return;
+    const answers = Object.fromEntries(Object.entries(q.answers).filter(([k]) => !QUIZ_FIELDS.includes(k)));
+    Object.assign(answers, { cuisines: [], dealbreakers: [], vibes: [] });
+    if (!q.steps.some((x) => x.id === 'novelty')) answers.novelty = 'new';
+    state.quiz = { ...q, step: 0, answers, resumed: false, advancing: false };
+    state.confirmRemove = null;
+    go('quiz');
+    toast('Starting over');
+  }
+
   function renderQuiz() {
+    saveQuizDraft();
     const { step, answers, steps } = state.quiz;
     const q = steps[step];
     const value = answers[q.id];
@@ -964,7 +1008,13 @@
     const last = step === steps.length - 1;
     $app.innerHTML = `
       ${progress}
-      <p class="eyebrow">${state.quiz.owner ? 'Your taste profile' : answers.name ? `${esc(answers.name)}’s taste profile` : 'New diner'} · ${step + 1} of ${steps.length}</p>
+      <div class="spread quiz-top">
+        <p class="eyebrow">${state.quiz.owner ? 'Your taste profile' : answers.name ? `${esc(answers.name)}’s taste profile` : 'New diner'} · ${step + 1} of ${steps.length}</p>
+        ${step > 0 || state.quiz.resumed
+          ? `<button class="ghost small" data-action="quiz-restart">${state.confirmRemove === 'quiz-restart' ? 'Tap again to start over' : 'Start over'}</button>`
+          : ''}
+      </div>
+      ${state.quiz.resumed ? '<p class="notice">Picking up where you left off. Your answers are saved.</p>' : ''}
       <h1>${esc(q.prompt)}</h1>
       ${q.hint ? `<p class="muted">${esc(q.hint)}</p>` : ''}
       ${body}
@@ -1206,6 +1256,7 @@
   }
 
   function quizNext() {
+    if (state.quiz) state.quiz.resumed = false;
     if (state.view !== 'quiz') return;
     if (state.quiz.step < state.quiz.steps.length - 1) {
       state.quiz.step++;
@@ -1216,7 +1267,12 @@
   }
 
   function quizBack() {
-    if (state.quiz.step === 0) return go(state.quiz.owner && state.quiz.isNew ? 'account' : homeView());
+    if (state.quiz.step === 0) {
+      const toAccount = state.quiz.owner && state.quiz.isNew;
+      state.quiz = null; // leaving the quiz on purpose: drop the draft
+      saveQuizDraft();
+      return go(toAccount ? 'account' : homeView());
+    }
     state.quiz.step--;
     render();
   }
@@ -1247,6 +1303,7 @@
     const wasNewOwner = state.quiz.owner && state.quiz.isNew;
     const wasNewFriend = !state.quiz.owner && !state.quiz.editingId;
     state.quiz = null;
+    saveQuizDraft();
     state.accountDraft = null;
     syncPresence();
     publishShortCode();
@@ -1734,7 +1791,9 @@
       render();
     },
     'auth-cancel': () => {
+      const f = state.authFlow;
       state.authFlow = null;
+      if (f?.next) return f.next(); // back to the step you were on
       go(owner() ? 'table' : 'welcome');
     },
     'log-out': () => {
@@ -1772,7 +1831,7 @@
         return render();
       }
       const back = state.view;
-      startAuth(mode, ['welcome', 'account'].includes(back) ? null : () => go(back));
+      startAuth(mode, back === 'welcome' ? null : () => go(back));
     },
     'auth-switch': (el) => {
       state.authFlow.email = document.getElementById('auth-email')?.value.trim() || state.authFlow.email;
@@ -1859,6 +1918,13 @@
     'open-friends': () => {
       go('profile');
       document.getElementById('friends')?.scrollIntoView({ block: 'start' });
+    },
+    'quiz-restart': () => {
+      if (state.confirmRemove !== 'quiz-restart') {
+        state.confirmRemove = 'quiz-restart';
+        return render();
+      }
+      restartQuiz();
     },
     'edit-bio': () => {
       state.editingBio = true;
@@ -1961,6 +2027,8 @@
       state.passed = {};
       saveJSON('localStorage', AUTH_KEY, null);
       registerSelf({ usernameKey: null, emailHash: null });
+      state.quiz = null;
+      saveQuizDraft();
       saveJSON('sessionStorage', HIDDEN_KEY, null);
       saveJSON('sessionStorage', PASSED_KEY, null);
       saveProfiles();
@@ -2124,7 +2192,7 @@
   document.addEventListener('click', (e) => {
     const el = e.target.closest('[data-action]');
     if (!el || el.tagName === 'INPUT') return;
-    if (!['remove', 'reset', 'unfriend'].includes(el.dataset.action) && state.confirmRemove) state.confirmRemove = null;
+    if (!['remove', 'reset', 'unfriend', 'quiz-restart'].includes(el.dataset.action) && state.confirmRemove) state.confirmRemove = null;
     const fn = actions[el.dataset.action];
     if (fn) fn(el);
   });

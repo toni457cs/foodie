@@ -20,6 +20,7 @@ You can also double-click `index.html`. Location features work best over `http:/
 ## How it works
 
 1. **Welcome → Log in / Create account, or Continue as guest**: guests can do everything except save favorites; tapping Save as favorite as a guest asks you to log in. **The login, account and two-factor screens are a clickable prototype for user testing.** Nothing is sent anywhere, passwords are never stored, and the 2FA step shows a test code on screen. Real accounts need an auth service, such as Supabase with authenticator-app 2FA. "Delete session" clears everything on this device.
+   Logging in or signing up mid-quiz keeps your answers and returns you to the same question, and Back on the Log in page does too. Answers are saved on the device as you go, so a reload picks up where you left off. **Start over** (tap twice) clears the answers.
 2. **Your taste quiz** (`js/quiz.js`): one question per screen:
    1. What food genre are you craving today? (up to 3)
    2. Stick to favorites · Try something new (logged-in users only; guests and people added on this phone are set to "something new")
