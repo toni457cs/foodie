@@ -313,7 +313,7 @@ input[type="password"] {
 .banner-img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .banner-default { display: block; width: 100%; height: 100%; }
 .banner-default circle { fill: none; stroke: var(--accent); stroke-width: 2; opacity: 0.35; }
-.banner-tools { position: absolute; right: 10px; bottom: 10px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.banner-tools { position: absolute; z-index: 2; right: 10px; top: 10px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
 .on-image { min-height: 36px; background: var(--surface); }
 .profile-id { display: flex; align-items: flex-end; gap: 12px; margin-top: -54px; padding-left: 14px; flex-wrap: wrap; }
 .profile-id .row { padding-bottom: 4px; }
@@ -355,7 +355,8 @@ label.btn { cursor: pointer; }
 
 /* Profile photo sits in front of the header, ringed so it never blends in */
 .banner { z-index: 0; }
-.profile-id { position: relative; z-index: 1; }
+.profile-id { position: relative; z-index: 1; pointer-events: none; }
+.profile-id > * { pointer-events: auto; } /* the row overlaps the header; let taps reach its buttons */
 .avatar.lg { border: 4px solid var(--surface); box-shadow: 0 0 0 1px var(--line), 0 4px 14px rgba(0, 0, 0, 0.18); }
 
 /* Settings button with an icon */
