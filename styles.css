@@ -385,9 +385,6 @@ label.btn { cursor: pointer; }
 .friend-actions { grid-column: 2; display: flex; gap: 6px; flex-wrap: wrap; }
 .friend-actions button { min-height: 36px; }
 .count { display: inline-block; min-width: 1.6em; padding: 0 0.4em; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font: 500 0.85rem/1.6 var(--font-body); text-align: center; vertical-align: middle; }
-.connect-form { flex-wrap: nowrap; }
-.connect-form input { min-height: 44px; letter-spacing: 0.08em; }
-.connect-form button { flex: none; }
 .request-note { width: 100%; justify-content: flex-start; min-height: 48px; border: 1px solid var(--accent); background: var(--accent-soft); color: var(--text); font-weight: 400; border-radius: var(--radius-field, 12px); }
 .me-btn { position: relative; }
 .req-dot { position: absolute; top: 9px; right: 9px; width: 9px; height: 9px; border-radius: 50%; background: var(--wine); box-shadow: 0 0 0 2px var(--bg); }

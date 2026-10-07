@@ -1754,13 +1754,8 @@
       ${group('Your friends', friends, 'friends')}
       ${group('Requests sent', sent, 'sent')}
       ${!friends.length && !incoming.length && !sent.length
-        ? '<p class="small muted">Connect with friends to see their profiles and bring them to your table in one tap.</p>'
+        ? '<p class="small muted">To connect, open someone’s profile from your table and tap Connect.</p>'
         : ''}
-      <form class="row connect-form" data-form="connect-code" novalidate>
-        <label class="sr-only" for="friend-code">Friend’s code</label>
-        <input type="text" id="friend-code" inputmode="numeric" autocomplete="off" placeholder="6-digit code" />
-        <button class="small" type="submit">Connect</button>
-      </form>
     </section>`;
   }
 
@@ -2380,18 +2375,6 @@
         await joinTable(host, { send: !!host.code });
       } catch (err) {
         toast(/^\d+$/.test(raw) && raw.length !== 6 ? 'Join codes have 6 digits.' : err.message);
-      }
-    },
-    'connect-code': async () => {
-      const raw = document.getElementById('friend-code').value.replace(/\s+/g, '');
-      if (!/^\d{6}$/.test(raw)) return toast('Enter the 6 digits of your friend’s code.');
-      try {
-        const p = await lookupShortCode(raw);
-        social.people[p.uid] = { name: p.name, profile: normalizeShared(p), card: p.card, code: p.code, fetched: true };
-        document.getElementById('friend-code').blur();
-        connect(p.uid, p.name);
-      } catch (err) {
-        toast(err.message);
       }
     },
     bio: () => {
