@@ -368,6 +368,29 @@
     return !!holder && holder !== myRegistryId();
   }
 
+  // Previews only: a ready-made test account, so login can be tried without signing up.
+  // Its profile lives only on this device, and its email is never claimed in the shared store.
+  const TEST_LOGIN = { email: 'test@foodiematch.app', password: 'tastetest1' };
+  const isTestLogin = (email) => DEMO_ONLY && email.trim().toLowerCase() === TEST_LOGIN.email;
+  function testProfile() {
+    const saved = {};
+    for (const id of ['folsom-petra-greek', 'sacramento-paragary-s', 'folsom-catherine-s-cr-perie']) {
+      const r = REGION.restaurants.find((x) => x.id === id);
+      if (r) saved[id] = { name: r.name, town: r.town || '', cuisine: arr(r.cuisine) };
+    }
+    return {
+      id: newId(), owner: true, name: 'taste_tester', test: true,
+      cuisines: ['japanese', 'mediterranean'], novelty: 'new', noise: 'buzz', dealbreakers: ['loud'],
+      maxWait: 30, diningWith: 'friends', vibes: ['patio', 'design'], zip: '95630',
+      bio: 'Always hunting for a good patio.', visibility: 'friends',
+      favorites: Object.keys(saved), visited: Object.keys(saved), saved,
+      ratings: { 'folsom-petra-greek': 5, 'sacramento-paragary-s': 4, 'folsom-catherine-s-cr-perie': 5 },
+      reviews: { 'sacramento-paragary-s': { text: 'The garden patio is lovely at dusk.' } },
+      history: { cuisines: { japanese: 3, mediterranean: 2, italian: 1 }, sessions: 4 },
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
   function renderAuth() {
     const f = state.authFlow;
     const badge = '<p class="proto">Prototype · nothing is saved or sent</p>';
@@ -414,6 +437,12 @@
           <input type="password" id="auth-pass" autocomplete="${signup ? 'new-password' : 'current-password'}" placeholder="Use a test password" /></div>
         ${signup ? `<label class="check"><input type="checkbox" id="auth-2fa" ${f.twoFactor !== false ? 'checked' : ''} /> Turn on two-factor authentication</label>` : ''}
         <p id="auth-error" class="notice error" hidden></p>
+        ${DEMO_ONLY && !signup
+          ? `<div class="notice demo-note">
+              <p><strong>Test account.</strong> Email <strong>${TEST_LOGIN.email}</strong>, password <strong>${TEST_LOGIN.password}</strong>.</p>
+              <div><button type="button" class="small" data-action="fill-test-login">Use the test account</button></div>
+            </div>`
+          : ''}
         <p class="small muted auth-toggle">${signup
           ? 'Already have an account? <button type="button" class="linkish" data-action="auth-mode" data-mode="login">Log in</button>'
           : 'New to FoodieMatch? <button type="button" class="linkish" data-action="auth-mode" data-mode="signup">Sign up instead</button>'}</p>
@@ -436,14 +465,17 @@
       };
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail('Add an email address to continue.');
       if (pass.value.length < 8) return fail('Use at least 8 characters.');
+      const test = isTestLogin(email);
+      if (test && signup) return fail('That’s the test account. Log in with it instead.', 'login');
       const hash = await emailHash(email);
-      const holder = await registryOwner('emailHash', hash);
+      const holder = test ? null : await registryOwner('emailHash', hash);
       if (signup && holder) return fail('That email already has a profile.', 'login');
-      if (!signup && !holder && shared.db) return fail('No profile uses that email yet.', 'signup');
+      if (!signup && !holder && !test && shared.db) return fail('No profile uses that email yet.', 'signup');
       pass.value = ''; // the prototype never keeps a password
       f.email = email;
       f.hash = hash;
-      f.claim = !holder || holder === myRegistryId(); // never take over someone else's email
+      f.claim = !test && (!holder || holder === myRegistryId()); // never take over someone else's email
+      f.test = test;
       f.twoFactor = signup ? document.getElementById('auth-2fa').checked : state.auth?.twoFactor ?? true;
       if (f.twoFactor) {
         f.code = String(Math.floor(100000 + Math.random() * 900000));
@@ -468,7 +500,8 @@
     saveJSON('sessionStorage', GUEST_KEY, null);
     state.auth = { email: f.email, twoFactor: f.twoFactor, prototype: true };
     saveJSON('localStorage', AUTH_KEY, state.auth);
-    const saved = loadProfiles();
+    let saved = loadProfiles();
+    if (f.test && !saved.some((p) => p.owner)) saved = [testProfile()];
     const savedOwner = saved.find((p) => p.owner);
     if (savedOwner) {
       // This account already has a profile: open it, and keep friends added this session.
@@ -484,10 +517,12 @@
     }
     state.selected = new Set(state.profiles.map((p) => p.id));
     saveProfiles();
-    registerSelf({
-      ...(f.claim ? { emailHash: f.hash } : {}),
-      ...(owner() ? { usernameKey: usernameKey(owner().name) } : {}),
-    });
+    if (!f.test) {
+      registerSelf({
+        ...(f.claim ? { emailHash: f.hash } : {}),
+        ...(owner() ? { usernameKey: usernameKey(owner().name) } : {}),
+      });
+    }
     shared.code = owner()?.shortCode || null;
     publishShortCode();
     startSocial();
@@ -1950,6 +1985,11 @@
     },
     'to-account': () => go('account'),
     'open-join': () => go('join'),
+    'fill-test-login': () => {
+      document.getElementById('auth-email').value = TEST_LOGIN.email;
+      document.getElementById('auth-pass').value = TEST_LOGIN.password;
+      document.getElementById('auth-pass').focus();
+    },
     'join-auth': () =>
       startAuth('login', () => {
         if (!signedIn()) return go('join-how'); // backed out of logging in
