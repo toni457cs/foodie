@@ -63,7 +63,7 @@ p { margin: 0 0 0.75rem; }
 }
 
 .topbar {
-  display: flex; align-items: center; justify-content: center;
+  display: flex; align-items: center; justify-content: flex-start;
   padding: 12px 16px; background: var(--bg);
   position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
   border-bottom: 1px solid var(--line);
@@ -392,3 +392,9 @@ label.btn { cursor: pointer; }
 .me-btn { position: relative; }
 .req-dot { position: absolute; top: 9px; right: 9px; width: 9px; height: 9px; border-radius: 50%; background: var(--wine); box-shadow: 0 0 0 2px var(--bg); }
 .diner > .avatar.sm { margin-top: 2px; }
+
+/* Header: FoodieMatch left-justified; Sign in, Sign up and the person icon at the right */
+.brand { padding-left: 0; text-align: left; }
+.me-area { right: 6px; gap: 0; }
+.signin-link { padding: 0 8px; font-size: 0.9rem; white-space: nowrap; }
+.signin-link.signup { color: var(--accent); }

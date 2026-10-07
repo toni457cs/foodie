@@ -227,6 +227,72 @@
 
   // Login / create account / two-factor: a clickable PROTOTYPE for user testing.
   // Nothing is sent anywhere and passwords are never stored or read back.
+  // ---------------------------------------------------------------------------
+  // One account per email, one person per username. In the shared store each person has
+  // accounts/<their id> (only they can write it) holding their lowercased username and a
+  // one-way hash of their email; the email itself is never stored. Without a store, the
+  // same check runs on this device.
+  // ---------------------------------------------------------------------------
+
+  const REGISTRY_KEY = 'foodie.registry.v1';
+  const usernameKey = (n) => String(n || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  const myRegistryId = () => shared.uid || 'this-device';
+
+  async function emailHash(email) {
+    const data = new TextEncoder().encode(`foodiematch:${email.trim().toLowerCase()}`);
+    try {
+      const buf = await crypto.subtle.digest('SHA-256', data);
+      return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+    } catch {
+      let h = 2166136261; // fallback where SubtleCrypto is unavailable
+      for (const c of data) h = Math.imul(h ^ c, 16777619) >>> 0;
+      return `f${h.toString(16)}`;
+    }
+  }
+
+  /** Who holds this username key or email hash: an id, or null. */
+  async function registryOwner(field, value) {
+    if (!value) return null;
+    try {
+      if (shared.db) {
+        const snap = await shared.db.collection('accounts').where(field, '==', value).limit(5).get();
+        const other = snap.docs.find((d) => d.id !== shared.uid);
+        return other ? other.id : snap.docs.length ? shared.uid : null;
+      }
+    } catch {
+      return null; // can't check right now: don't block the person
+    }
+    const reg = loadJSON('localStorage', REGISTRY_KEY) || {};
+    return (reg[field] || {})[value] || null;
+  }
+
+  /** Record (or clear, with null) your username key and email hash. */
+  async function registerSelf(patch) {
+    try {
+      if (shared.db) {
+        const ref = shared.db.doc(`accounts/${shared.uid}`);
+        const cur = await ref.get();
+        const d = cur.exists ? cur.data() : {};
+        await ref.set({ usernameKey: d.usernameKey ?? null, emailHash: d.emailHash ?? null, ...patch, updatedAt: Date.now() });
+        return;
+      }
+    } catch {
+      return;
+    }
+    const reg = loadJSON('localStorage', REGISTRY_KEY) || {};
+    for (const [field, value] of Object.entries(patch)) {
+      reg[field] = reg[field] || {};
+      for (const k of Object.keys(reg[field])) if (reg[field][k] === myRegistryId()) delete reg[field][k];
+      if (value) reg[field][value] = myRegistryId();
+    }
+    saveJSON('localStorage', REGISTRY_KEY, reg);
+  }
+
+  async function usernameTaken(name) {
+    const holder = await registryOwner('usernameKey', usernameKey(name));
+    return !!holder && holder !== myRegistryId();
+  }
+
   function renderAuth() {
     const f = state.authFlow;
     const badge = '<p class="proto">Prototype · nothing is saved or sent</p>';
@@ -264,7 +330,7 @@
         ${badge}
         <div class="tabs" role="tablist">
           <button type="button" role="tab" aria-selected="${!signup}" data-action="auth-mode" data-mode="login">Sign in</button>
-          <button type="button" role="tab" aria-selected="${signup}" data-action="auth-mode" data-mode="signup">Create account</button>
+          <button type="button" role="tab" aria-selected="${signup}" data-action="auth-mode" data-mode="signup">Sign up</button>
         </div>
         <h1>${signup ? 'Create your account' : 'Welcome back'}</h1>
         <div class="field"><label for="auth-email">Email</label>
@@ -279,19 +345,27 @@
         </div>
       </form>`;
     document.getElementById('auth-email').focus();
-    document.getElementById('auth-form').addEventListener('submit', (e) => {
+    document.getElementById('auth-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const email = document.getElementById('auth-email').value.trim();
       const pass = document.getElementById('auth-pass');
       const err = document.getElementById('auth-error');
-      const fail = (msg) => {
-        err.textContent = msg;
+      const fail = (msg, switchTo) => {
+        err.innerHTML = esc(msg) + (switchTo
+          ? ` <button type="button" class="linkish" data-action="auth-switch" data-mode="${switchTo}">${switchTo === 'login' ? 'Sign in instead' : 'Sign up instead'}</button>`
+          : '');
         err.hidden = false;
       };
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail('Add an email address to continue.');
       if (pass.value.length < 8) return fail('Use at least 8 characters.');
+      const hash = await emailHash(email);
+      const holder = await registryOwner('emailHash', hash);
+      if (signup && holder) return fail('That email already has a profile.', 'login');
+      if (!signup && !holder && shared.db) return fail('No profile uses that email yet.', 'signup');
       pass.value = ''; // the prototype never keeps a password
       f.email = email;
+      f.hash = hash;
+      f.claim = !holder || holder === myRegistryId(); // never take over someone else's email
       f.twoFactor = signup ? document.getElementById('auth-2fa').checked : state.auth?.twoFactor ?? true;
       if (f.twoFactor) {
         f.code = String(Math.floor(100000 + Math.random() * 900000));
@@ -310,6 +384,7 @@
   function finishAuth() {
     const f = state.authFlow;
     state.auth = { email: f.email, twoFactor: f.twoFactor, prototype: true };
+    if (f.claim) registerSelf({ emailHash: f.hash });
     saveJSON('localStorage', AUTH_KEY, state.auth);
     state.authFlow = null;
     toast(f.twoFactor ? 'Signed in with two-factor on' : 'Signed in');
@@ -331,7 +406,7 @@
         </div>
       </form>`;
     document.getElementById('acct-name').focus();
-    document.getElementById('account-form').addEventListener('submit', (e) => {
+    document.getElementById('account-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const name = document.getElementById('acct-name').value.trim();
       state.accountDraft = { name };
@@ -341,6 +416,13 @@
         error.hidden = false;
         return;
       }
+      if (await usernameTaken(name)) {
+        const error = document.getElementById('acct-error');
+        error.textContent = 'That username is taken. Try another.';
+        error.hidden = false;
+        return;
+      }
+      registerSelf({ usernameKey: usernameKey(name) });
       startQuiz({ id: newId(), owner: true, name, cuisines: [], dealbreakers: [], vibes: [], favorites: [], visited: [] }, { skipName: true, isNew: true });
     });
   }
@@ -701,9 +783,13 @@
     const current = ['profile', 'settings', 'preview'].includes(state.view) ? 'aria-current="page"' : '';
     const requests = shared.uid ? socialLists().incoming.length : 0;
     const profileBtn = `<button class="me-btn" data-action="open-profile" aria-label="Your profile${requests ? `, ${requests} friend request${requests > 1 ? 's' : ''}` : ''}" ${current}>${PERSON_ICON}${requests ? '<span class="req-dot" aria-hidden="true"></span>' : ''}</button>`;
-    if (signedIn()) area.innerHTML = profileBtn;
-    else if (owner()) area.innerHTML = `<button class="signin-link" data-action="sign-in">Sign in</button>${profileBtn}`;
-    else area.innerHTML = `<button class="me-btn me-signin" data-action="sign-in">${PERSON_ICON}<span>Sign in</span></button>`;
+    if (signedIn()) {
+      area.innerHTML = profileBtn;
+      return;
+    }
+    const icon = owner() ? profileBtn : `<button class="me-btn" data-action="sign-in" data-mode="login" aria-label="Sign in">${PERSON_ICON}</button>`;
+    area.innerHTML = `<button class="signin-link" data-action="sign-in" data-mode="login">Sign in</button>
+      <button class="signin-link signup" data-action="sign-in" data-mode="signup">Sign up</button>${icon}`;
   }
 
   function dinerRow(p) {
@@ -1637,6 +1723,7 @@
     },
     'auth-start': (el) => startAuth(el.dataset.mode, owner() ? () => go(state.returnView || 'table') : null),
     'auth-mode': (el) => {
+      state.authFlow.email = document.getElementById('auth-email')?.value.trim() || state.authFlow.email;
       state.authFlow.mode = el.dataset.mode;
       render();
     },
@@ -1676,10 +1763,19 @@
     },
     'open-profile': () => (owner() ? go('profile') : signedIn() ? go('account') : actions['sign-in']()),
     // Sign in from any step, then come back to it.
-    'sign-in': () => {
-      if (state.view === 'auth') return;
+    'sign-in': (el) => {
+      const mode = el?.dataset?.mode === 'signup' ? 'signup' : 'login';
+      if (state.view === 'auth') {
+        state.authFlow.mode = mode; // already here: just flip the toggle
+        return render();
+      }
       const back = state.view;
-      startAuth('login', ['welcome', 'account'].includes(back) ? null : () => go(back));
+      startAuth(mode, ['welcome', 'account'].includes(back) ? null : () => go(back));
+    },
+    'auth-switch': (el) => {
+      state.authFlow.email = document.getElementById('auth-email')?.value.trim() || state.authFlow.email;
+      state.authFlow.mode = el.dataset.mode;
+      render();
     },
     'open-settings': () => go('settings'),
     'preview-profile': () => go('preview'),
@@ -1862,6 +1958,7 @@
       state.hidden.clear();
       state.passed = {};
       saveJSON('localStorage', AUTH_KEY, null);
+      registerSelf({ usernameKey: null, emailHash: null });
       saveJSON('sessionStorage', HIDDEN_KEY, null);
       saveJSON('sessionStorage', PASSED_KEY, null);
       saveProfiles();
@@ -2065,16 +2162,22 @@
       me.phone = digits;
       profileChanged('Phone number saved');
     },
-    username: () => {
+    username: async () => {
       const me = owner();
-      const name = document.getElementById('set-name').value.trim();
+      const name = document.getElementById('set-name').value.trim().slice(0, 40);
       if (!name) return toast('Add a username to save.');
-      me.name = name.slice(0, 40);
+      if (usernameKey(name) !== usernameKey(me.name) && (await usernameTaken(name))) return toast('That username is taken. Try another.');
+      me.name = name;
+      registerSelf({ usernameKey: usernameKey(name) });
       profileChanged('Username saved');
     },
-    email: () => {
+    email: async () => {
       const email = document.getElementById('set-email').value.trim();
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return toast('Add a full email address, like you@example.com.');
+      const hash = await emailHash(email);
+      const holder = await registryOwner('emailHash', hash);
+      if (holder && holder !== myRegistryId()) return toast('That email already has a profile.');
+      registerSelf({ emailHash: hash });
       state.auth = { ...state.auth, email };
       saveJSON('localStorage', AUTH_KEY, state.auth);
       render();
