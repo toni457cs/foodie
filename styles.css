@@ -380,8 +380,8 @@ label.btn { cursor: pointer; }
 .friend { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
 .friends .friend:first-child { border-top: 0; padding-top: 0; }
 .friend .who { min-width: 0; }
-.friend-actions { grid-column: 2; display: flex; gap: 6px; flex-wrap: wrap; }
-.friend-actions button { min-height: 36px; }
+.friend-actions { grid-column: 2; display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+.friend-actions button { min-height: 40px; padding: 0 1rem; }
 .count { display: inline-block; min-width: 1.6em; padding: 0 0.4em; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font: 500 0.85rem/1.6 var(--font-body); text-align: center; vertical-align: middle; }
 .request-note { width: 100%; justify-content: flex-start; min-height: 48px; border: 1px solid var(--accent); background: var(--accent-soft); color: var(--text); font-weight: 400; border-radius: var(--radius-field, 12px); }
 .me-btn { position: relative; }

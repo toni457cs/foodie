@@ -1720,10 +1720,10 @@
     const summary = p.profile ? profileSummary(p.profile) : '';
     const buttons = {
       incoming: `<button class="primary small" data-action="accept-friend" data-uid="${esc(uid)}">Accept</button>
-        <button class="ghost small" data-action="decline-friend" data-uid="${esc(uid)}">Decline</button>`,
-      friends: `<button class="ghost small" data-action="view-friend" data-uid="${esc(uid)}">Profile</button>
-        <button class="ghost small" data-action="unfriend" data-uid="${esc(uid)}">${state.confirmRemove === `unfriend:${uid}` ? 'Tap to remove' : 'Remove'}</button>`,
-      sent: `<button class="ghost small" data-action="cancel-request" data-uid="${esc(uid)}">Cancel</button>`,
+        <button class="small" data-action="decline-friend" data-uid="${esc(uid)}">Decline</button>`,
+      friends: `<button class="small" data-action="view-friend" data-uid="${esc(uid)}">Profile</button>
+        <button class="small" data-action="unfriend" data-uid="${esc(uid)}">${state.confirmRemove === `unfriend:${uid}` ? 'Tap to remove' : 'Remove'}</button>`,
+      sent: `<button class="small" data-action="cancel-request" data-uid="${esc(uid)}">Cancel</button>`,
     }[kind];
     return `<div class="friend">
       ${avatarHtml(avatarSrc, 'sm')}
