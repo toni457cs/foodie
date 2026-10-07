@@ -1023,6 +1023,9 @@
           <h2>Who’s joining you?</h2>
         </div>
         ${myCodeRow(me)}
+        ${DEMO_ONLY && !state.profiles.some((p) => p.peer === 'test-sam')
+          ? '<div class="small muted">Demo: <button class="linkish" data-action="demo-join">let sam_noodles join with your code</button></div>'
+          : ''}
         ${tableFriendsHtml()}
         ${friends.length ? `<div class="card list">${friends.map(dinerRow).join('')}</div>` : ''}
         <div class="add-grid">
@@ -1794,6 +1797,15 @@
   const joins = { code: null, stop: null };
   state.joinedCode = loadJSON('sessionStorage', JOINED_KEY);
 
+  // Previews only: a simulated table of test users to practice joining. Real codes are
+  // 100000–999999, so this one can never belong to a person.
+  const DEMO_TABLE_CODE = '012345';
+  const testSeat = (peer) => {
+    const t = (REGION.testUsers || []).find((x) => x.peer === peer);
+    return t && { ...normalizeShared(t.profile), id: newId(), peer: t.peer, uid: t.peer, card: normalizeCard(t.card) };
+  };
+  const demoHost = () => ({ ...testSeat('test-priya'), demo: true, companions: [testSeat('test-marcus'), testSeat('test-jules')] });
+
   function renderJoin() {
     $app.innerHTML = `
       <section class="stack">
@@ -1803,6 +1815,12 @@
           <input type="text" id="join-code" inputmode="numeric" autocomplete="off" placeholder="6-digit code" />
           <p class="small muted">Ask whoever started the table for their code. You’ll both get the same picks.</p>
         </form>
+        ${DEMO_ONLY
+          ? `<div class="notice demo-note">
+              <p><strong>Try a demo table.</strong> Code <strong class="code">012 345</strong> seats you with the test users priya_eats, marcus_r and jules.tacos.</p>
+              <div><button class="small" data-action="demo-code">Use the demo code</button></div>
+            </div>`
+          : ''}
       </section>
       <div class="actionbar">
         <button class="ghost" data-action="join-back">← Back</button>
@@ -1828,15 +1846,17 @@
   }
 
   function completeJoin() {
-    const { send, ...host } = state.pendingJoin;
+    const { send, companions = [], demo, ...host } = state.pendingJoin;
     state.pendingJoin = null;
-    const same = (p) => (host.uid && p.uid === host.uid) || (host.peer && p.peer === host.peer);
-    let seat = state.profiles.find((p) => !p.owner && same(p));
-    if (!seat) {
-      seat = host;
-      state.profiles.push(seat);
+    for (const person of [host, ...companions]) {
+      const same = (p) => (person.uid && p.uid === person.uid) || (person.peer && p.peer === person.peer);
+      let seat = state.profiles.find((p) => !p.owner && same(p));
+      if (!seat) {
+        seat = person;
+        state.profiles.push(seat);
+      }
+      state.selected.add(seat.id);
     }
-    state.selected.add(seat.id);
     saveProfiles();
     if (send && host.code) {
       state.joinedCode = host.code;
@@ -1844,7 +1864,9 @@
       sendJoin();
     }
     go('table');
-    toast(`You’re at ${host.name}’s table`);
+    toast(companions.length
+      ? `You’re at ${host.name}’s table with ${names(companions.map((p) => p.name))}`
+      : `You’re at ${host.name}’s table`);
   }
 
   async function sendJoin() {
@@ -1923,6 +1945,21 @@
     },
     'to-account': () => go('account'),
     'open-join': () => go('join'),
+    'demo-code': () => {
+      const input = document.getElementById('join-code');
+      input.value = '012 345';
+      input.focus();
+    },
+    // Previews only: what the host sees when someone joins with their code.
+    'demo-join': () => {
+      if (state.profiles.some((p) => p.peer === 'test-sam')) return;
+      const seat = testSeat('test-sam');
+      state.profiles.push(seat);
+      state.selected.add(seat.id);
+      saveProfiles();
+      render();
+      toast(`${seat.name} joined your table`);
+    },
     'join-back': () => {
       state.pendingJoin = null;
       go(owner() ? 'table' : 'welcome');
@@ -2337,7 +2374,8 @@
       const raw = input.value.replace(/\s+/g, '');
       if (!raw) return toast('Enter the 6-digit join code.');
       try {
-        const host = /^\d{6}$/.test(raw) ? await lookupShortCode(raw) : fromCode(raw);
+        const host = DEMO_ONLY && raw === DEMO_TABLE_CODE ? demoHost()
+          : /^\d{6}$/.test(raw) ? await lookupShortCode(raw) : fromCode(raw);
         input.blur();
         await joinTable(host, { send: !!host.code });
       } catch (err) {
