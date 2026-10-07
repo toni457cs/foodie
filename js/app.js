@@ -360,7 +360,7 @@
   ];
   const VISIBILITY = {
     private: ['Private', 'Only you can see your profile. Friends with your code still get your taste answers for matching.'],
-    friends: ['Friends', 'People you share your code with can see your profile.'],
+    friends: ['Friends', 'Friends you connect with, and people you share your code with, can see your profile.'],
     public: ['Public', 'You show up under Nearby, and anyone with the app open can see your profile.'],
   };
   const visibility = (p) => (VISIBILITY[p?.visibility] ? p.visibility : 'private'); // private by default
@@ -477,11 +477,12 @@
       </div>`).join('')}</div></section>`;
   }
 
-  function personHtml(card, fallbackName, backLabel) {
+  function personHtml(card, fallbackName, backLabel, uid) {
     if (!card) {
       return `<section class="stack">
         <h1>${esc(fallbackName)}</h1>
         <p class="muted">${esc(fallbackName)} keeps their profile private.</p>
+        ${connectControl(uid, fallbackName)}
       </section>
       <section><button class="ghost" data-action="${backLabel[0]}">← ${esc(backLabel[1])}</button></section>`;
     }
@@ -492,6 +493,7 @@
         ${card.bio ? `<p class="bio">${esc(card.bio)}</p>` : ''}
         ${card.phone ? `<p class="small">${esc(formatPhone(card.phone))}</p>` : ''}
         <p class="small muted">${esc(VISIBILITY[card.visibility][0])} profile</p>
+        ${connectControl(uid, card.name)}
       </section>
       ${cardSections(card)}
       <section><button class="ghost" data-action="${backLabel[0]}">← ${esc(backLabel[1])}</button></section>`;
@@ -541,6 +543,8 @@
         </div>
       </section>
 
+      ${friendsCard()}
+
       ${favoritesCard(me, {
         tags: [
           hiddenTag('favorites'),
@@ -566,12 +570,12 @@
 
   function renderPerson() {
     if (state.personLive) {
-      $app.innerHTML = personHtml(state.personLive.card, state.personLive.name, ['home', 'Back to my table']);
+      $app.innerHTML = personHtml(state.personLive.card, state.personLive.name, state.personLive.back || ['home', 'Back to my table'], state.personLive.uid);
       return;
     }
     const f = state.profiles.find((p) => p.id === state.personId);
     if (!f) return go('table');
-    $app.innerHTML = personHtml(f.card, f.name, ['home', 'Back to my table']);
+    $app.innerHTML = personHtml(f.card, f.name, ['home', 'Back to my table'], f.uid);
   }
 
   function renderSettings() {
@@ -695,7 +699,8 @@
     const area = document.getElementById('me-area');
     if (!area) return;
     const current = ['profile', 'settings', 'preview'].includes(state.view) ? 'aria-current="page"' : '';
-    const profileBtn = `<button class="me-btn" data-action="open-profile" aria-label="Your profile" ${current}>${PERSON_ICON}</button>`;
+    const requests = shared.uid ? socialLists().incoming.length : 0;
+    const profileBtn = `<button class="me-btn" data-action="open-profile" aria-label="Your profile${requests ? `, ${requests} friend request${requests > 1 ? 's' : ''}` : ''}" ${current}>${PERSON_ICON}${requests ? '<span class="req-dot" aria-hidden="true"></span>' : ''}</button>`;
     if (signedIn()) area.innerHTML = profileBtn;
     else if (owner()) area.innerHTML = `<button class="signin-link" data-action="sign-in">Sign in</button>${profileBtn}`;
     else area.innerHTML = `<button class="me-btn me-signin" data-action="sign-in">${PERSON_ICON}<span>Sign in</span></button>`;
@@ -814,6 +819,7 @@
           <h2>Who’s joining you?</h2>
         </div>
         ${myCodeRow(me)}
+        ${tableFriendsHtml()}
         ${friends.length ? `<div class="card list">${friends.map(dinerRow).join('')}</div>` : ''}
         <div id="nearby" class="stack" hidden></div>
         <div class="add-grid">
@@ -1261,6 +1267,7 @@
       /* lookups still work; publishing will retry */
     }
     if (owner()) publishShortCode();
+    startSocial();
   }
 
   /** Save (or refresh) your profile under your 6-digit code. */
@@ -1297,7 +1304,210 @@
     if (doc.id === shared.uid) throw new Error('That’s your own code.');
     const profile = normalizeShared(doc.data().profile);
     if (!profile) throw new Error('That code is missing a profile.');
-    return { ...profile, id: newId(), code, card: normalizeCard(doc.data().card) };
+    return { ...profile, id: newId(), code, uid: doc.id, card: normalizeCard(doc.data().card) };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Friends: connections between people. Each person keeps one list in links/<their id>
+  // (only they can write it). Both on each other's lists = friends; on theirs but not
+  // yours = a request for you.
+  // ---------------------------------------------------------------------------
+
+  const social = {
+    started: false,
+    mine: { uids: [], declined: [] },
+    listsMe: new Set(),
+    // Previews only: Priya (test) has sent you a request, and test users accept yours.
+    testListsMe: new Set(DEMO_ONLY ? ['test-priya'] : []),
+    people: {},
+  };
+  const TEST_IDS = new Set((REGION.testUsers || []).map((t) => t.peer));
+  const listsMe = (uid) => social.listsMe.has(uid) || social.testListsMe.has(uid);
+
+  function friendState(uid) {
+    if (!uid || uid === shared.uid) return 'self';
+    const mine = social.mine.uids.includes(uid);
+    if (mine && listsMe(uid)) return 'friends';
+    if (mine) return 'sent';
+    if (listsMe(uid) && !social.mine.declined.includes(uid)) return 'incoming';
+    return 'none';
+  }
+
+  function socialLists() {
+    const all = [...new Set([...social.mine.uids, ...social.listsMe, ...social.testListsMe])];
+    const by = (st) => all.filter((u) => friendState(u) === st);
+    return { friends: by('friends'), incoming: by('incoming'), sent: by('sent') };
+  }
+
+  function startSocial() {
+    if (social.started || !shared.db || !shared.uid) return;
+    social.started = true;
+    shared.db.doc(`links/${shared.uid}`).onSnapshot(
+      (snap) => {
+        const d = snap.exists ? snap.data() : {};
+        social.mine = { uids: arr(d.uids), declined: arr(d.declined) };
+        loadPeople();
+        socialChanged();
+      },
+      () => {},
+    );
+    shared.db
+      .collection('links')
+      .where('uids', 'array-contains', shared.uid)
+      .onSnapshot(
+        (snap) => {
+          social.listsMe = new Set(snap.docs.map((d) => d.id));
+          loadPeople();
+          socialChanged();
+        },
+        () => {},
+      );
+  }
+
+  /** Names and profile cards for everyone in your lists, from their code entry. */
+  async function loadPeople() {
+    const uids = [...new Set([...social.mine.uids, ...social.listsMe, ...social.testListsMe])];
+    for (const uid of uids) {
+      if (social.people[uid]?.fetched || social.people[uid]?.loading) continue;
+      const test = (REGION.testUsers || []).find((t) => t.peer === uid);
+      if (test) {
+        social.people[uid] = { name: test.profile.name, profile: normalizeShared(test.profile), card: normalizeCard(test.card), fetched: true };
+        continue;
+      }
+      social.people[uid] = { name: social.people[uid]?.name || 'Someone', loading: true };
+      try {
+        const doc = await shared.db.doc(`codes/${uid}`).get();
+        const v = doc.exists ? doc.data() : {};
+        const profile = normalizeShared(v.profile);
+        social.people[uid] = { name: profile?.name || 'Someone', profile, card: normalizeCard(v.card), code: v.code, fetched: true };
+      } catch {
+        social.people[uid] = { name: social.people[uid]?.name || 'Someone' }; // try again on the next change
+      }
+      socialChanged();
+    }
+  }
+
+  function socialChanged() {
+    renderTopbar();
+    if (document.activeElement?.matches('input, textarea')) return; // don't disturb typing
+    if (['table', 'profile', 'person'].includes(state.view)) render();
+  }
+
+  async function saveLinks(next, message) {
+    if (!shared.db || !shared.uid) return toast('Friend connections work in the shared FoodieMatch link.');
+    const before = social.mine;
+    social.mine = next;
+    socialChanged();
+    try {
+      await shared.db.doc(`links/${shared.uid}`).set({ uids: next.uids, declined: next.declined, updatedAt: Date.now() });
+      if (message) toast(message);
+    } catch {
+      social.mine = before;
+      socialChanged();
+      toast('Couldn’t update your friends just now. Try again in a moment.');
+    }
+  }
+
+  const personName = (uid) => social.people[uid]?.name || 'Someone';
+
+  function connect(uid, name) {
+    if (!uid || uid === shared.uid) return;
+    social.people[uid] = social.people[uid] || { name: name || 'Someone' };
+    const next = { uids: [...new Set([...social.mine.uids, uid])], declined: social.mine.declined.filter((u) => u !== uid) };
+    const accepting = listsMe(uid);
+    saveLinks(next, accepting ? `You and ${personName(uid)} are now friends` : `Friend request sent to ${personName(uid)}`);
+    if (TEST_IDS.has(uid) && !accepting) {
+      setTimeout(() => {
+        social.testListsMe.add(uid); // test users accept right away
+        socialChanged();
+        toast(`${personName(uid)} accepted your request`);
+      }, 1200);
+    }
+    loadPeople();
+  }
+
+  /** The button(s) on someone's profile: Connect, Request sent, Accept, or Friends. */
+  function connectControl(uid, name) {
+    if (!uid || !shared.db) return '';
+    const st = friendState(uid);
+    const n = esc(name || personName(uid));
+    if (st === 'self') return '';
+    if (st === 'friends') {
+      return `<div class="row"><span class="chip good">Friends</span><button class="small" data-action="friend-to-table" data-uid="${esc(uid)}">Add to table</button></div>`;
+    }
+    if (st === 'sent') {
+      return `<div class="row"><span class="small muted">Request sent</span><button class="ghost small" data-action="cancel-request" data-uid="${esc(uid)}">Cancel</button></div>`;
+    }
+    if (st === 'incoming') {
+      return `<div class="row"><span class="small muted">${n} wants to connect</span>
+        <button class="primary small" data-action="accept-friend" data-uid="${esc(uid)}">Accept</button>
+        <button class="ghost small" data-action="decline-friend" data-uid="${esc(uid)}">Decline</button></div>`;
+    }
+    return `<div><button class="primary small" data-action="connect" data-uid="${esc(uid)}" data-name="${n}">Connect</button></div>`;
+  }
+
+  function friendRow(uid, kind) {
+    const p = social.people[uid] || { name: 'Someone' };
+    const avatarSrc = p.card || { name: p.name };
+    const summary = p.profile ? profileSummary(p.profile) : '';
+    const buttons = {
+      incoming: `<button class="primary small" data-action="accept-friend" data-uid="${esc(uid)}">Accept</button>
+        <button class="ghost small" data-action="decline-friend" data-uid="${esc(uid)}">Decline</button>`,
+      friends: `<button class="ghost small" data-action="view-friend" data-uid="${esc(uid)}">Profile</button>
+        <button class="ghost small" data-action="unfriend" data-uid="${esc(uid)}">${state.confirmRemove === `unfriend:${uid}` ? 'Tap to remove' : 'Remove'}</button>`,
+      sent: `<button class="ghost small" data-action="cancel-request" data-uid="${esc(uid)}">Cancel</button>`,
+    }[kind];
+    return `<div class="friend">
+      ${avatarHtml(avatarSrc, 'sm')}
+      <div class="who"><strong>${esc(p.name)}</strong>${summary ? `<div class="small muted">${esc(summary)}</div>` : ''}</div>
+      <div class="friend-actions">${buttons}</div>
+    </div>`;
+  }
+
+  function friendsCard() {
+    if (!shared.db || !shared.uid) {
+      return `<section class="card stack" id="friends"><h2>Friends</h2>
+        <p class="small muted">Friend connections work in the shared FoodieMatch link.</p></section>`;
+    }
+    const { friends, incoming, sent } = socialLists();
+    const group = (title, list, kind) =>
+      list.length ? `<div class="stack"><p class="eyebrow">${title}</p><div class="friends">${list.map((u) => friendRow(u, kind)).join('')}</div></div>` : '';
+    return `<section class="card stack" id="friends">
+      <h2>Friends${friends.length ? ` <span class="count">${friends.length}</span>` : ''}</h2>
+      ${group('Friend requests', incoming, 'incoming')}
+      ${group('Your friends', friends, 'friends')}
+      ${group('Requests sent', sent, 'sent')}
+      ${!friends.length && !incoming.length && !sent.length
+        ? '<p class="small muted">Connect with friends to see their profiles and bring them to your table in one tap.</p>'
+        : ''}
+      <form class="row connect-form" data-form="connect-code" novalidate>
+        <label class="sr-only" for="friend-code">Friend’s code</label>
+        <input type="text" id="friend-code" inputmode="numeric" autocomplete="off" placeholder="6-digit code" />
+        <button class="small" type="submit">Connect</button>
+      </form>
+    </section>`;
+  }
+
+  /** On the table screen: requests waiting for you, and friends you can bring along in one tap. */
+  function tableFriendsHtml() {
+    if (!shared.db || !shared.uid) return '';
+    const { friends, incoming } = socialLists();
+    const atTable = new Set(state.profiles.map((p) => p.uid).filter(Boolean));
+    const free = friends.filter((u) => !atTable.has(u));
+    const requests = incoming.length
+      ? `<button class="notice request-note" data-action="open-friends">${incoming.length === 1
+        ? `${esc(personName(incoming[0]))} wants to connect`
+        : `${incoming.length} friend requests`} · <span class="linkish">View</span></button>`
+      : '';
+    const list = free.length
+      ? `<p class="eyebrow">Your friends</p><div class="card list">${free.map((uid) => {
+          const p = social.people[uid] || { name: 'Someone' };
+          return `<div class="diner">${avatarHtml(p.card || { name: p.name }, 'sm')}
+            <div class="who"><strong>${esc(p.name)}</strong>${p.profile ? `<div class="small muted">${esc(profileSummary(p.profile))}</div>` : ''}</div>
+            <button class="small" data-action="friend-to-table" data-uid="${esc(uid)}">Add</button></div>`;
+        }).join('')}</div>`
+      : '';
+    return requests + list;
   }
 
   // ---------------------------------------------------------------------------
@@ -1331,6 +1541,7 @@
           .filter((p) => !p.isMe && p.kind === 'viewer')
           .map((p) => ({
             peer: p.peer,
+            uid: p.by || null,
             town: typeof p.presence?.town === 'string' ? p.presence.town.slice(0, 40) : null,
             profile: normalizeShared(p.presence?.profile),
             card: normalizeCard(p.presence?.card),
@@ -1405,7 +1616,7 @@
   function exampleNearby() {
     if (!DEMO_ONLY) return [];
     return (REGION.testUsers || []).map((t) => ({
-      peer: t.peer, town: t.town, example: true, profile: normalizeShared(t.profile), card: normalizeCard(t.card),
+      peer: t.peer, uid: t.peer, town: t.town, example: true, profile: normalizeShared(t.profile), card: normalizeCard(t.card),
     }));
   }
 
@@ -1495,7 +1706,7 @@
       const p = [...live.peers, ...exampleNearby()].find((x) => x.peer === el.dataset.peer);
       if (!p) return;
       state.personId = null;
-      state.personLive = { card: p.card, name: p.profile.name };
+      state.personLive = { card: p.card, name: p.profile.name, uid: p.uid || null };
       go('person');
     },
     'remove-image': (el) => {
@@ -1503,6 +1714,53 @@
       if (!me) return;
       delete me[el.dataset.kind];
       profileChanged(el.dataset.kind === 'avatar' ? 'Photo removed' : 'Header removed');
+    },
+    connect: (el) => connect(el.dataset.uid, el.dataset.name),
+    'accept-friend': (el) => connect(el.dataset.uid),
+    'decline-friend': (el) => {
+      const uid = el.dataset.uid;
+      saveLinks({ uids: social.mine.uids.filter((u) => u !== uid), declined: [...new Set([...social.mine.declined, uid])] }, 'Request declined');
+    },
+    'cancel-request': (el) => {
+      const uid = el.dataset.uid;
+      social.testListsMe.delete(uid);
+      saveLinks({ uids: social.mine.uids.filter((u) => u !== uid), declined: social.mine.declined }, 'Request canceled');
+    },
+    unfriend: (el) => {
+      const uid = el.dataset.uid;
+      if (state.confirmRemove !== `unfriend:${uid}`) {
+        state.confirmRemove = `unfriend:${uid}`;
+        return render();
+      }
+      state.confirmRemove = null;
+      social.testListsMe.delete(uid);
+      saveLinks(
+        { uids: social.mine.uids.filter((u) => u !== uid), declined: [...new Set([...social.mine.declined, uid])] },
+        `${personName(uid)} removed from your friends`,
+      );
+    },
+    'view-friend': (el) => {
+      const uid = el.dataset.uid;
+      const p = social.people[uid] || { name: 'Someone' };
+      state.personId = null;
+      state.personLive = { card: p.card, name: p.name, uid, back: ['open-profile', 'Back to my profile'] };
+      go('person');
+    },
+    'friend-to-table': (el) => {
+      const uid = el.dataset.uid;
+      const p = social.people[uid];
+      if (!p?.profile) return toast(`${personName(uid)} hasn’t finished their taste quiz yet.`);
+      if (state.profiles.some((f) => f.uid === uid)) return toast(`${p.name} is already at your table`);
+      const friend = { ...p.profile, id: newId(), uid, code: p.code, card: p.card };
+      state.profiles.push(friend);
+      state.selected.add(friend.id);
+      saveProfiles();
+      toast(`${p.name} is joining you`);
+      render();
+    },
+    'open-friends': () => {
+      go('profile');
+      document.getElementById('friends')?.scrollIntoView({ block: 'start' });
     },
     'edit-bio': () => {
       state.editingBio = true;
@@ -1767,11 +2025,23 @@
   document.addEventListener('click', (e) => {
     const el = e.target.closest('[data-action]');
     if (!el || el.tagName === 'INPUT') return;
-    if (!['remove', 'reset'].includes(el.dataset.action) && state.confirmRemove) state.confirmRemove = null;
+    if (!['remove', 'reset', 'unfriend'].includes(el.dataset.action) && state.confirmRemove) state.confirmRemove = null;
     const fn = actions[el.dataset.action];
     if (fn) fn(el);
   });
   const FORMS = {
+    'connect-code': async () => {
+      const raw = document.getElementById('friend-code').value.replace(/\s+/g, '');
+      if (!/^\d{6}$/.test(raw)) return toast('Enter the 6 digits of your friend’s code.');
+      try {
+        const p = await lookupShortCode(raw);
+        social.people[p.uid] = { name: p.name, profile: normalizeShared(p), card: p.card, code: p.code, fetched: true };
+        document.getElementById('friend-code').blur();
+        connect(p.uid, p.name);
+      } catch (err) {
+        toast(err.message);
+      }
+    },
     bio: () => {
       const me = owner();
       me.bio = document.getElementById('set-bio').value.trim().slice(0, 160);
