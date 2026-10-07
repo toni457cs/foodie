@@ -82,11 +82,13 @@
 
   const signedIn = () => !!state.auth?.email;
 
+  /** Returns false when storage refused the write (full, or blocked). */
   function saveProfiles() {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state.profiles));
+      return true;
     } catch {
-      /* private mode etc.: app still works for this session */
+      return false; // private mode etc.: app still works for this session
     }
   }
 
@@ -342,6 +344,335 @@
     });
   }
 
+  // ---------------------------------------------------------------------------
+  // Profile: photo, header, sections, and who can see them
+  // ---------------------------------------------------------------------------
+
+  const SECTIONS = [
+    ['photo', 'Profile photo'],
+    ['header', 'Header image'],
+    ['tastes', 'Taste profile'],
+    ['genres', 'Top genres'],
+    ['favorites', 'Favorites'],
+    ['ratings', 'Ratings'],
+  ];
+  const VISIBILITY = {
+    private: ['Private', 'Only you can see your profile. Friends with your code still get your taste answers for matching.'],
+    friends: ['Friends', 'People you share your code with can see your profile.'],
+    public: ['Public', 'You show up under Nearby, and anyone with the app open can see your profile.'],
+  };
+  const visibility = (p) => (VISIBILITY[p?.visibility] ? p.visibility : 'private'); // private by default
+  const isHidden = (p, key) => !!(p?.hiddenSections || {})[key];
+  const IMAGE_URL = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
+
+  /** What others may see of a profile: null when it's private. Hidden sections are left out. */
+  function publicCard(me, { images = true, maxFavorites = 12 } = {}) {
+    if (!me || visibility(me) === 'private') return null;
+    const card = { name: me.name, visibility: visibility(me) };
+    if (images && me.avatar && !isHidden(me, 'photo')) card.avatar = me.avatar;
+    if (images && me.header && !isHidden(me, 'header')) card.header = me.header;
+    if (!isHidden(me, 'tastes')) {
+      card.tastes = { cuisines: arr(me.cuisines), noise: me.noise || null, vibes: arr(me.vibes), diningWith: me.diningWith || null };
+    }
+    if (!isHidden(me, 'genres')) card.genres = Match.topGenres(me);
+    if (!isHidden(me, 'favorites')) {
+      const saved = me.saved || {};
+      card.favorites = arr(me.favorites)
+        .filter((id) => saved[id])
+        .slice(0, maxFavorites)
+        .map((id) => ({
+          name: saved[id].name,
+          town: saved[id].town || '',
+          cuisine: arr(saved[id].cuisine),
+          ...(isHidden(me, 'ratings') ? {} : { stars: (me.ratings || {})[id] || 0 }),
+        }));
+    }
+    return card;
+  }
+
+  /** Clean up a profile card that came from someone else. */
+  function normalizeCard(c) {
+    if (!c || typeof c !== 'object' || typeof c.name !== 'string') return null;
+    const str = (v, n = 60) => (typeof v === 'string' ? v.slice(0, n) : '');
+    const out = { name: str(c.name, 40), visibility: VISIBILITY[c.visibility] ? c.visibility : 'friends' };
+    if (typeof c.avatar === 'string' && c.avatar.length < 120000 && IMAGE_URL.test(c.avatar)) out.avatar = c.avatar;
+    if (typeof c.header === 'string' && c.header.length < 200000 && IMAGE_URL.test(c.header)) out.header = c.header;
+    if (c.tastes && typeof c.tastes === 'object') {
+      out.tastes = {
+        cuisines: arr(c.tastes.cuisines).filter((x) => x in LABELS.cuisine).slice(0, 3),
+        noise: c.tastes.noise in LABELS.noise ? c.tastes.noise : null,
+        vibes: arr(c.tastes.vibes).filter((x) => x in LABELS.vibe).slice(0, 2),
+        diningWith: c.tastes.diningWith in LABELS.company ? c.tastes.diningWith : null,
+      };
+    }
+    if (Array.isArray(c.genres)) out.genres = arr(c.genres).filter((x) => x in LABELS.cuisine).slice(0, 3);
+    if (Array.isArray(c.favorites)) {
+      out.favorites = c.favorites
+        .filter((f) => f && typeof f.name === 'string')
+        .slice(0, 12)
+        .map((f) => ({
+          name: str(f.name),
+          town: str(f.town, 40),
+          cuisine: arr(f.cuisine).filter((x) => x in LABELS.cuisine),
+          ...(Number.isInteger(f.stars) && f.stars >= 0 && f.stars <= 5 ? { stars: f.stars } : {}),
+        }));
+    }
+    return out;
+  }
+
+  function avatarHtml(p, size) {
+    const img = p && IMAGE_URL.test(p.avatar || '') ? p.avatar : null;
+    if (img) return `<img class="avatar ${size}" src="${esc(img)}" alt="" />`;
+    return `<span class="avatar ${size}" aria-hidden="true">${esc((p?.name || '?').trim().charAt(0).toUpperCase() || '?')}</span>`;
+  }
+
+  function bannerHtml(header) {
+    if (header && IMAGE_URL.test(header)) return `<img class="banner-img" src="${esc(header)}" alt="" />`;
+    return `<svg class="banner-default" viewBox="0 0 480 160" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <circle cx="392" cy="80" r="58" /><circle cx="392" cy="80" r="38" /></svg>`;
+  }
+
+  const starRow = (n) => `<span class="stars-static" aria-label="${n} of 5">${[1, 2, 3, 4, 5]
+    .map((i) => `<span class="star-static ${i <= n ? 'on' : ''}">${STAR}</span>`).join('')}</span>`;
+
+  /** Read-only view of a profile card: what friends (or the public) see. */
+  function cardSections(card) {
+    const out = [];
+    const t = card.tastes;
+    if (t) {
+      const rows = [
+        ['Craving', t.cuisines.map((c) => LABELS.cuisine[c]).join(', ')],
+        ['Noise', LABELS.noise[t.noise]],
+        ['Loves', t.vibes.map((v) => LABELS.vibe[v]).join(', ')],
+        ['With', LABELS.company[t.diningWith]],
+      ].filter(([, v]) => v);
+      if (rows.length) {
+        out.push(`<section class="card stack"><h2>Taste profile</h2><dl class="facts">${rows
+          .map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl></section>`);
+      }
+    }
+    if (card.genres?.length) {
+      out.push(`<section class="card stack"><h2>Top genres</h2><p class="genres">${esc(card.genres.map((c) => LABELS.cuisine[c]).join(' · '))}</p></section>`);
+    }
+    if (card.favorites?.length) {
+      out.push(`<section class="card stack"><h2>Favorites</h2><div class="favs">${card.favorites
+        .map((f) => `<div class="fav"><div class="who"><strong>${esc(f.name)}</strong>
+          <div class="small muted">${esc([f.cuisine.map((c) => LABELS.cuisine[c]).join(', '), f.town].filter(Boolean).join(' · '))}</div></div>
+          ${f.stars ? starRow(f.stars) : ''}</div>`).join('')}</div></section>`);
+    }
+    return out.join('') || '<p class="muted">Nothing shared here yet.</p>';
+  }
+
+  function personHtml(card, fallbackName, backLabel) {
+    if (!card) {
+      return `<section class="stack">
+        <h1>${esc(fallbackName)}</h1>
+        <p class="muted">${esc(fallbackName)} keeps their profile private.</p>
+      </section>
+      <section><button class="ghost" data-action="${backLabel[0]}">← ${esc(backLabel[1])}</button></section>`;
+    }
+    return `<section class="profile-head">
+        <div class="banner">${bannerHtml(card.header)}</div>
+        <div class="profile-id">${avatarHtml(card, 'lg')}</div>
+        <h1>${esc(card.name)}</h1>
+        <p class="small muted">${esc(VISIBILITY[card.visibility][0])} profile</p>
+      </section>
+      ${cardSections(card)}
+      <section><button class="ghost" data-action="${backLabel[0]}">← ${esc(backLabel[1])}</button></section>`;
+  }
+
+  function renderProfile() {
+    const me = owner();
+    if (!me) return go('welcome');
+    const vis = visibility(me);
+    const hiddenTag = (key) => (isHidden(me, key) ? '<span class="chip">Hidden from others</span>' : '');
+    const usual = Match.topGenres(me);
+    $app.innerHTML = `
+      <section class="profile-head">
+        <div class="banner">
+          ${bannerHtml(me.header)}
+          <div class="banner-tools">
+            ${hiddenTag('header')}
+            <label class="btn small on-image" for="pick-header">${me.header ? 'Change header' : 'Add header'}</label>
+            ${me.header ? '<button class="small on-image" data-action="remove-image" data-kind="header">Remove</button>' : ''}
+          </div>
+        </div>
+        <div class="profile-id">
+          ${avatarHtml(me, 'lg')}
+          <div class="row">
+            <label class="btn small" for="pick-avatar">${me.avatar ? 'Change photo' : 'Add photo'}</label>
+            ${me.avatar ? '<button class="ghost small" data-action="remove-image" data-kind="avatar">Remove</button>' : ''}
+            ${hiddenTag('photo')}
+          </div>
+        </div>
+        <input type="file" id="pick-header" class="file-pick" data-kind="header" accept="image/*" hidden />
+        <input type="file" id="pick-avatar" class="file-pick" data-kind="avatar" accept="image/*" hidden />
+        <h1>${esc(me.name)}</h1>
+        <p class="small muted"><span class="vis-pill">${esc(VISIBILITY[vis][0])}</span> ${esc(VISIBILITY[vis][1])}</p>
+        <div class="row">
+          <button class="small" data-action="open-settings">Settings</button>
+          <button class="ghost small" data-action="preview-profile">See what friends see</button>
+        </div>
+      </section>
+
+      <section class="card me">
+        <div class="spread"><h2>Taste profile</h2><button class="ghost small" data-action="retake" data-id="${me.id}">Update</button></div>
+        ${hiddenTag('tastes')}
+        <dl class="facts">${profileFacts(me)}</dl>
+      </section>
+
+      <section class="card stack">
+        <div class="spread"><h2>Top genres</h2>${hiddenTag('genres')}</div>
+        ${usual.length
+          ? `<p class="genres">${esc(usual.map((c) => LABELS.cuisine[c] || c).join(' · '))}</p>`
+          : '<p class="small muted">Genres you pick in two or more quizzes show up here.</p>'}
+      </section>
+
+      ${favoritesCard(me, { tags: [hiddenTag('favorites'), isHidden(me, 'ratings') ? '<span class="chip">Ratings hidden from others</span>' : ''].join('') })}
+
+      <section><button class="ghost" data-action="home">← Back to my table</button></section>`;
+  }
+
+  function renderPreview() {
+    const me = owner();
+    if (!me) return go('welcome');
+    $app.innerHTML = `
+      <p class="notice">${{
+        private: 'Your profile is private, so no one else sees it.',
+        friends: 'This is what friends with your code see.',
+        public: 'This is what anyone with the app open sees.',
+      }[visibility(me)]}</p>
+      ${personHtml(publicCard(me), me.name, ['open-profile', 'Back to my profile'])}`;
+  }
+
+  function renderPerson() {
+    if (state.personLive) {
+      $app.innerHTML = personHtml(state.personLive.card, state.personLive.name, ['home', 'Back to my table']);
+      return;
+    }
+    const f = state.profiles.find((p) => p.id === state.personId);
+    if (!f) return go('table');
+    $app.innerHTML = personHtml(f.card, f.name, ['home', 'Back to my table']);
+  }
+
+  function renderSettings() {
+    const me = owner();
+    if (!me) return go('welcome');
+    const vis = visibility(me);
+    const twoFa = state.twoFaSetup;
+    const sw = (on, action, label, extra = '') =>
+      `<button class="switch" role="switch" aria-checked="${on}" data-action="${action}" ${extra}><span>${esc(label)}</span><span class="knob" aria-hidden="true"></span></button>`;
+    const account = signedIn()
+      ? `<p class="proto">Prototype · passwords are never saved or sent</p>
+        <form class="stack" data-form="email" novalidate>
+          <div class="field"><label for="set-email">Email</label>
+            <input type="email" id="set-email" autocomplete="email" value="${esc(state.auth.email)}" /></div>
+          <div><button class="small" type="submit">Save email</button></div>
+        </form>
+        <form class="stack" data-form="password" novalidate>
+          <div class="field"><label for="set-pass">New password</label>
+            <input type="password" id="set-pass" autocomplete="new-password" placeholder="At least 8 characters" /></div>
+          <div class="field"><label for="set-pass2">Confirm new password</label>
+            <input type="password" id="set-pass2" autocomplete="new-password" /></div>
+          <div><button class="small" type="submit">Change password</button></div>
+        </form>
+        ${sw(!!state.auth.twoFactor || !!twoFa, 'toggle-2fa', 'Two-factor authentication')}
+        ${twoFa
+          ? `<form class="stack" data-form="twofa" novalidate>
+              <p class="small muted">Add FoodieMatch to your authenticator app, then enter the 6-digit code.</p>
+              <p class="testcode">Test code: <strong>${twoFa.code}</strong></p>
+              <input type="text" id="set-2fa" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" />
+              <div class="row"><button class="primary small" type="submit">Turn on</button><button class="ghost small" type="button" data-action="cancel-2fa">Cancel</button></div>
+            </form>`
+          : ''}`
+      : `<p class="small muted">Log in or create an account to add an email, a password and two-factor authentication.</p>
+        <div><button class="small" data-action="auth-start" data-mode="signup">Log in or create account</button></div>`;
+    $app.innerHTML = `
+      <section><h1>Settings</h1></section>
+
+      <section class="card stack">
+        <h2>Account</h2>
+        <form class="stack" data-form="username" novalidate>
+          <div class="field"><label for="set-name">Username</label>
+            <input type="text" id="set-name" maxlength="40" autocomplete="nickname" value="${esc(me.name)}" /></div>
+          <div><button class="small" type="submit">Save username</button></div>
+        </form>
+        ${account}
+      </section>
+
+      <section class="card stack">
+        <h2>Who can see your profile</h2>
+        <div class="options" role="radiogroup" aria-label="Profile visibility">
+          ${Object.entries(VISIBILITY).map(([k, [label, hint]]) => `
+            <button class="option" role="radio" aria-checked="${vis === k}" aria-pressed="${vis === k}" data-action="set-visibility" data-vis="${k}">
+              <span class="tick"></span><span>${label}${k === 'private' ? ' (default)' : ''}<span class="hint">${esc(hint)}</span></span>
+            </button>`).join('')}
+        </div>
+      </section>
+
+      <section class="card stack">
+        <h2>Show on your profile</h2>
+        <div class="switches">
+          ${SECTIONS.map(([key, label]) => sw(!isHidden(me, key), 'toggle-section', label, `data-key="${key}"`)).join('')}
+        </div>
+        <p class="small muted">Hidden sections stay visible to you. Ratings show next to favorites.</p>
+      </section>
+
+      <section class="card stack">
+        <h2>Session</h2>
+        <div class="row">
+          ${signedIn() ? `<span class="small muted">${esc(state.auth.email)}</span><button class="ghost small" data-action="log-out">Log out</button>` : ''}
+          <button class="ghost small" data-action="reset">${state.confirmRemove === 'reset' ? 'Tap again to delete session' : 'Delete session'}</button>
+        </div>
+      </section>
+
+      <section><button class="ghost" data-action="open-profile">← Back to my profile</button></section>`;
+  }
+
+  /** Crop and shrink a picked image so it fits comfortably in storage. */
+  function resizeImage(file, kind) {
+    const [w, h] = kind === 'avatar' ? [192, 192] : [960, 320];
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const scale = Math.max(w / img.naturalWidth, h / img.naturalHeight);
+        const sw = w / scale;
+        const sh = h / scale;
+        canvas.getContext('2d').drawImage(img, (img.naturalWidth - sw) / 2, (img.naturalHeight - sh) / 2, sw, sh, 0, 0, w, h);
+        URL.revokeObjectURL(url);
+        resolve(canvas.toDataURL('image/jpeg', kind === 'avatar' ? 0.82 : 0.78));
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('That file couldn’t be opened as an image. Try a JPEG or PNG.'));
+      };
+      img.src = url;
+    });
+  }
+
+  /** Something others might see changed: update Nearby and your code's card. */
+  function profileChanged(message) {
+    const ok = saveProfiles();
+    syncPresence();
+    publishShortCode();
+    render();
+    if (!ok) toast('Couldn’t save that on this device. Try a smaller image.');
+    else if (message) toast(message);
+  }
+
+  function renderTopbar() {
+    const btn = document.getElementById('me-btn');
+    if (!btn) return;
+    const me = owner();
+    btn.hidden = !me;
+    if (me) btn.innerHTML = avatarHtml(me, 'sm');
+    btn.toggleAttribute('aria-current', ['profile', 'settings', 'preview'].includes(state.view));
+  }
+
   function dinerRow(p) {
     return `
       <div class="diner">
@@ -352,7 +683,8 @@
           <div class="small muted">${esc(profileSummary(p))}</div>
         </div>
         <div class="actions">
-          <button class="ghost small" data-action="retake" data-id="${p.id}">Edit</button>
+          ${p.card || p.code ? `<button class="ghost small" data-action="view-person" data-id="${p.id}">Profile</button>` : ''}
+          ${p.code || p.peer ? '' : `<button class="ghost small" data-action="retake" data-id="${p.id}">Edit</button>`}
           <button class="ghost small" data-action="share" data-id="${p.id}">Code</button>
           <button class="ghost small" data-action="remove" data-id="${p.id}" aria-label="Remove ${esc(p.name)}">${state.confirmRemove === p.id ? 'Tap to remove' : 'Remove'}</button>
         </div>
@@ -361,7 +693,7 @@
 
   const STAR = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 1.8l2.5 5.3 5.7.7-4.2 3.9 1.1 5.7L10 14.6l-5.1 2.8 1.1-5.7L1.8 7.8l5.7-.7z"/></svg>';
 
-  function favoritesCard(me) {
+  function favoritesCard(me, { tags = '' } = {}) {
     if (!signedIn()) {
       return `<section class="card stack">
         <h2>Your favorites</h2>
@@ -372,7 +704,7 @@
     const saved = me.saved || {};
     const ids = arr(me.favorites).filter((id) => saved[id]);
     if (!ids.length) {
-      return `<section class="card stack"><h2>Your favorites</h2>
+      return `<section class="card stack"><h2>Your favorites</h2>${tags ? `<div>${tags}</div>` : ''}
         <p class="small muted">Tap Save on a pick and it shows up here to rate.</p></section>`;
     }
     const stars = (id) => {
@@ -384,6 +716,7 @@
     };
     return `<section class="card stack">
       <h2>Your favorites</h2>
+      ${tags ? `<div>${tags}</div>` : ''}
       <div class="favs">${ids
         .map((id) => `<div class="fav">
           <div class="who"><strong>${esc(saved[id].name)}</strong>
@@ -428,7 +761,6 @@
         </div>
       </section>
 
-      ${favoritesCard(me)}
       <section class="stack">
         <div>
           <h2>Who’s joining you?</h2>
@@ -447,13 +779,6 @@
         </div>
       </section>
 
-      <section class="row">
-        ${signedIn()
-          ? `<span class="small muted">${esc(state.auth.email)}${state.auth.twoFactor ? ' · 2FA on' : ''}</span>
-             <button class="ghost small" data-action="log-out">Log out</button>`
-          : `<button class="ghost small" data-action="auth-start" data-mode="login">Log in to save favorites</button>`}
-        <button class="ghost small" data-action="reset">${state.confirmRemove === 'reset' ? 'Tap again to delete session' : 'Delete session'}</button>
-      </section>
       <div class="actionbar">
         <button class="primary block" data-action="to-group">
           ${joining.length ? `Find a table for ${joining.length + 1}` : 'Just me. Show my picks'}
@@ -676,8 +1001,13 @@
       share: renderShare,
       group: renderGroup,
       results: renderResults,
+      profile: renderProfile,
+      settings: renderSettings,
+      preview: renderPreview,
+      person: renderPerson,
     };
     views[state.view]();
+    renderTopbar();
   }
 
   // ---------------------------------------------------------------------------
@@ -898,7 +1228,7 @@
         if (!taken.docs.length) code = candidate;
       }
       if (!code) return;
-      await shared.db.doc(`codes/${shared.uid}`).set({ code, profile, updatedAt: Date.now() });
+      await shared.db.doc(`codes/${shared.uid}`).set({ code, profile, card: publicCard(me), updatedAt: Date.now() });
       shared.code = code;
       if (state.view === 'table' && !document.activeElement?.matches('input, textarea')) render();
     } catch {
@@ -919,7 +1249,7 @@
     if (doc.id === shared.uid) throw new Error('That’s your own code.');
     const profile = normalizeShared(doc.data().profile);
     if (!profile) throw new Error('That code is missing a profile.');
-    return { ...profile, id: newId() };
+    return { ...profile, id: newId(), code, card: normalizeCard(doc.data().card) };
   }
 
   // ---------------------------------------------------------------------------
@@ -928,12 +1258,13 @@
 
   const live = { room: null, peers: [] };
 
-  // What others see: your first name, taste answers and last ZIP town. Never coordinates.
+  // Only public profiles appear under Nearby: first name, taste answers, last ZIP town and the
+  // visible parts of the profile card (no images). Never coordinates.
   function myPresence() {
     const me = owner();
-    if (!me) return { profile: null, town: null };
+    if (!me || visibility(me) !== 'public') return { profile: null, town: null, card: null };
     const { favorites, ...profile } = Object.fromEntries(SHARE_FIELDS.map((k) => [k, me[k] ?? null]));
-    return { profile, town: state.myTown || null };
+    return { profile, town: state.myTown || null, card: publicCard(me, { images: false, maxFavorites: 6 }) };
   }
 
   function syncPresence() {
@@ -950,7 +1281,12 @@
       ({ peers }) => {
         live.peers = peers
           .filter((p) => !p.isMe && p.kind === 'viewer')
-          .map((p) => ({ peer: p.peer, town: typeof p.presence?.town === 'string' ? p.presence.town.slice(0, 40) : null, profile: normalizeShared(p.presence?.profile) }))
+          .map((p) => ({
+            peer: p.peer,
+            town: typeof p.presence?.town === 'string' ? p.presence.town.slice(0, 40) : null,
+            profile: normalizeShared(p.presence?.profile),
+            card: normalizeCard(p.presence?.card),
+          }))
           .filter((p) => p.profile);
         refreshLinkedFriends();
         renderNearby();
@@ -969,7 +1305,7 @@
     for (const p of live.peers) {
       const friend = state.profiles.find((f) => f.peer === p.peer);
       if (!friend) continue;
-      const next = { ...friend, ...p.profile, id: friend.id, peer: p.peer, favorites: friend.favorites, visited: friend.visited };
+      const next = { ...friend, ...p.profile, id: friend.id, peer: p.peer, card: p.card, favorites: friend.favorites, visited: friend.visited };
       if (JSON.stringify(next) !== JSON.stringify(friend)) {
         Object.assign(friend, next);
         changed = true;
@@ -1002,9 +1338,12 @@
             <strong>${esc(p.profile.name)}</strong>${p.town ? ` <span class="small muted">· ${esc(p.town)}</span>` : ''}
             <div class="small muted">${esc(profileSummary(p.profile))}</div>
           </div>
-          ${added
-            ? '<span class="small muted joined">Joining</span>'
-            : `<button class="small" data-action="add-nearby" data-peer="${esc(p.peer)}">Add</button>`}
+          <div class="actions">
+            ${p.card ? `<button class="ghost small" data-action="view-nearby" data-peer="${esc(p.peer)}">Profile</button>` : ''}
+            ${added
+              ? '<span class="small muted joined">Joining</span>'
+              : `<button class="small" data-action="add-nearby" data-peer="${esc(p.peer)}">Add</button>`}
+          </div>
         </div>`;
     };
     el.innerHTML = `
@@ -1017,7 +1356,9 @@
   /** Example test users shown under Nearby in previews, so group picks can be tried alone. */
   function exampleNearby() {
     if (!DEMO_ONLY) return [];
-    return (REGION.testUsers || []).map((t) => ({ peer: t.peer, town: t.town, example: true, profile: normalizeShared(t.profile) }));
+    return (REGION.testUsers || []).map((t) => ({
+      peer: t.peer, town: t.town, example: true, profile: normalizeShared(t.profile), card: normalizeCard(t.card),
+    }));
   }
 
   // ---------------------------------------------------------------------------
@@ -1049,6 +1390,7 @@
       go(owner() ? 'table' : 'welcome');
     },
     'log-out': () => {
+      state.twoFaSetup = null;
       state.auth = { guest: true };
       saveJSON('localStorage', AUTH_KEY, state.auth);
       toast('Logged out');
@@ -1072,6 +1414,75 @@
       saveProfiles();
       render();
     },
+    'open-profile': () => go('profile'),
+    'open-settings': () => go('settings'),
+    'preview-profile': () => go('preview'),
+    'view-person': async (el) => {
+      const f = state.profiles.find((p) => p.id === el.dataset.id);
+      if (!f) return;
+      state.personId = f.id;
+      state.personLive = null;
+      go('person');
+      if (f.code && shared.db) {
+        // Fetch their latest card: they may have changed what they show.
+        try {
+          const snap = await shared.db.collection('codes').where('code', '==', f.code).limit(1).get();
+          const doc = snap.docs[0];
+          f.card = doc ? normalizeCard(doc.data().card) : null;
+          saveProfiles();
+          if (state.view === 'person' && state.personId === f.id) render();
+        } catch {
+          /* show what we have */
+        }
+      }
+    },
+    'view-nearby': (el) => {
+      const p = [...live.peers, ...exampleNearby()].find((x) => x.peer === el.dataset.peer);
+      if (!p) return;
+      state.personId = null;
+      state.personLive = { card: p.card, name: p.profile.name };
+      go('person');
+    },
+    'remove-image': (el) => {
+      const me = owner();
+      if (!me) return;
+      delete me[el.dataset.kind];
+      profileChanged(el.dataset.kind === 'avatar' ? 'Photo removed' : 'Header removed');
+    },
+    'set-visibility': (el) => {
+      const me = owner();
+      if (!me) return;
+      me.visibility = el.dataset.vis;
+      profileChanged(`Your profile is now ${VISIBILITY[me.visibility][0].toLowerCase()}`);
+    },
+    'toggle-section': (el) => {
+      const me = owner();
+      if (!me) return;
+      const key = el.dataset.key;
+      me.hiddenSections = { ...(me.hiddenSections || {}), [key]: !isHidden(me, key) };
+      const label = SECTIONS.find(([k]) => k === key)[1];
+      profileChanged(isHidden(me, key) ? `${label} hidden from others` : `${label} shown`);
+    },
+    'toggle-2fa': () => {
+      if (!signedIn()) return;
+      if (state.twoFaSetup) {
+        state.twoFaSetup = null;
+        return render();
+      }
+      if (state.auth.twoFactor) {
+        state.auth = { ...state.auth, twoFactor: false };
+        saveJSON('localStorage', AUTH_KEY, state.auth);
+        render();
+        return toast('Two-factor authentication is off');
+      }
+      state.twoFaSetup = { code: String(Math.floor(100000 + Math.random() * 900000)) };
+      render();
+      document.getElementById('set-2fa')?.focus();
+    },
+    'cancel-2fa': () => {
+      state.twoFaSetup = null;
+      render();
+    },
     'toast-action': () => {
       document.getElementById('toast').hidden = true;
       toast.action?.();
@@ -1088,7 +1499,7 @@
     'add-nearby': (el) => {
       const p = [...live.peers, ...exampleNearby()].find((x) => x.peer === el.dataset.peer);
       if (!p || state.profiles.some((f) => f.peer === p.peer)) return;
-      const friend = { ...p.profile, id: newId(), peer: p.peer };
+      const friend = { ...p.profile, id: newId(), peer: p.peer, card: p.card };
       state.profiles.push(friend);
       state.selected.add(friend.id);
       saveProfiles();
@@ -1274,6 +1685,61 @@
     const fn = actions[el.dataset.action];
     if (fn) fn(el);
   });
+  const FORMS = {
+    username: () => {
+      const me = owner();
+      const name = document.getElementById('set-name').value.trim();
+      if (!name) return toast('Add a username to save.');
+      me.name = name.slice(0, 40);
+      profileChanged('Username saved');
+    },
+    email: () => {
+      const email = document.getElementById('set-email').value.trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return toast('Add a full email address, like you@example.com.');
+      state.auth = { ...state.auth, email };
+      saveJSON('localStorage', AUTH_KEY, state.auth);
+      render();
+      toast('Email saved');
+    },
+    password: () => {
+      const a = document.getElementById('set-pass');
+      const b = document.getElementById('set-pass2');
+      if (a.value.length < 8) return toast('Use at least 8 characters.');
+      if (a.value !== b.value) return toast('The two passwords don’t match yet.');
+      a.value = '';
+      b.value = ''; // the prototype never keeps a password
+      toast('Password changed');
+    },
+    twofa: () => {
+      const typed = document.getElementById('set-2fa').value.trim();
+      if (typed !== state.twoFaSetup?.code) return toast('That code doesn’t match. Try the test code above.');
+      state.twoFaSetup = null;
+      state.auth = { ...state.auth, twoFactor: true };
+      saveJSON('localStorage', AUTH_KEY, state.auth);
+      render();
+      toast('Two-factor authentication is on');
+    },
+  };
+  document.addEventListener('submit', (e) => {
+    const handler = FORMS[e.target.dataset?.form];
+    if (!handler) return;
+    e.preventDefault();
+    handler();
+  });
+
+  document.addEventListener('change', async (e) => {
+    const input = e.target;
+    if (!input.matches?.('.file-pick') || !input.files?.[0]) return;
+    const me = owner();
+    if (!me) return;
+    try {
+      me[input.dataset.kind] = await resizeImage(input.files[0], input.dataset.kind);
+      profileChanged(input.dataset.kind === 'avatar' ? 'Photo updated' : 'Header updated');
+    } catch (err) {
+      toast(err.message);
+    }
+  });
+
   document.addEventListener('change', (e) => {
     const el = e.target;
     if (el.matches('input[data-action="toggle"]')) actions.toggle(el);
