@@ -130,10 +130,6 @@ textarea { font-family: ui-monospace, Menlo, monospace; font-size: 0.8rem; resiz
 .hero h1 { font-size: 2.6rem; margin: 0; }
 #account-form { min-height: 60vh; align-content: start; }
 #account-form h1 label { font: inherit; }
-.setting {
-  width: 100%; max-width: 240px; height: auto; justify-self: center; margin-bottom: 8px;
-  fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; opacity: 0.85;
-}
 
 /* Quiz */
 .progress { height: 3px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
@@ -433,3 +429,7 @@ label.btn { cursor: pointer; }
 .demo-note { display: grid; gap: 10px; }
 .demo-note p { margin: 0; }
 .demo-note .code { font: 500 1.1rem var(--font-display); font-variant-numeric: tabular-nums; letter-spacing: 0.04em; white-space: nowrap; }
+
+/* The logo, large, on the welcome screen */
+.logo.hero-logo { width: 176px; height: 120px; justify-self: center; margin-bottom: 8px; }
+.logo.hero-logo circle { stroke-width: 1.4; }

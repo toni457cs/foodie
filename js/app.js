@@ -283,11 +283,7 @@
   function renderWelcome() {
     $app.innerHTML = `
       <section class="hero welcome">
-        <svg class="setting" viewBox="0 0 220 120" aria-hidden="true">
-          <path d="M38 18v30c0 7 5 11 10 11v45M48 18v28M58 18v30c0 7-5 11-10 11" />
-          <circle cx="110" cy="62" r="46" /><circle cx="110" cy="62" r="31" />
-          <path d="M176 104V20c11 6 14 26 14 40h-14" />
-        </svg>
+        <svg class="logo hero-logo" viewBox="0 0 44 30" aria-hidden="true"><circle class="logo-a" cx="15" cy="15" r="11.5"/><circle class="logo-a" cx="15" cy="15" r="6"/><circle class="logo-b" cx="29" cy="15" r="11.5"/><circle class="logo-b" cx="29" cy="15" r="6"/></svg>
         <h1>Many cravings. One table.</h1>
         <div class="welcome-actions">
           <button class="primary" data-action="auth-start" data-mode="login">Login/Sign Up</button>
