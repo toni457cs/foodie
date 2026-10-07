@@ -948,8 +948,7 @@
         </div>
         <div class="actions">
           ${p.card || p.code ? `<button class="ghost small" data-action="view-person" data-id="${p.id}">Profile</button>` : ''}
-          ${p.code || p.peer ? '' : `<button class="ghost small" data-action="retake" data-id="${p.id}">Edit</button>`}
-          <button class="ghost small" data-action="share" data-id="${p.id}">Code</button>
+          ${p.code || p.peer || p.uid ? '' : `<button class="ghost small" data-action="retake" data-id="${p.id}">Edit</button>`}
           <button class="ghost small" data-action="remove" data-id="${p.id}" aria-label="Remove ${esc(p.name)}">${state.confirmRemove === p.id ? 'Tap to remove' : 'Remove'}</button>
         </div>
       </div>`;
