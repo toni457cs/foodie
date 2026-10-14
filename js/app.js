@@ -944,6 +944,20 @@
     area.innerHTML = `<button class="signin-link" data-action="sign-in" data-mode="login">Login/Sign Up</button>${icon}`;
   }
 
+  /** A seat at someone else's table: shown, not edited. */
+  function seatRow(p) {
+    return `
+      <div class="diner">
+        <div class="who">
+          <strong>${esc(p.name)}</strong>
+          <div class="small muted">${esc(profileSummary(p))}</div>
+        </div>
+        <div class="actions">
+          ${p.card || p.code ? `<button class="ghost small" data-action="view-person" data-id="${p.id}">Profile</button>` : ''}
+        </div>
+      </div>`;
+  }
+
   function dinerRow(p) {
     return `
       <div class="diner">
@@ -1041,6 +1055,7 @@
     const friends = state.profiles.filter((p) => !p.owner);
     const joining = friends.filter((p) => state.selected.has(p.id));
     const fresh = state.justFinished === me.id; // cleared when you leave this screen
+    const guestAt = state.joinedTable; // set when you joined someone else's table
 
     $app.innerHTML = `
       <section class="stack">
@@ -1057,18 +1072,22 @@
 
       <section class="stack">
         <div>
-          <h2>Who’s joining you?</h2>
+          <h2>${guestAt ? `At ${esc(guestAt.name)}’s table` : 'Who’s joining you?'}</h2>
         </div>
-        ${myCodeRow(me)}
-        ${DEMO_ONLY && !state.profiles.some((p) => p.peer === 'test-sam')
-          ? '<div class="small muted">Demo: <button class="linkish" data-action="demo-join">let sam_noodles join with your code</button></div>'
-          : ''}
-        ${tableFriendsHtml()}
-        ${friends.length ? `<div class="card list">${friends.map(dinerRow).join('')}</div>` : ''}
-        <div class="add-grid">
-          <button data-action="add-here">Add someone here<span class="hint">They take the quiz on this phone</span></button>
-          <button data-action="open-join">Join a friend’s table<span class="hint">With their join code</span></button>
-        </div>
+        ${guestAt
+          ? // You joined someone else's table: they manage the list, so it's read-only here.
+            `<p class="small muted">${esc(guestAt.name)} manages who’s at this table.</p>
+            ${friends.length ? `<div class="card list">${friends.map(seatRow).join('')}</div>` : ''}
+            <div><button class="ghost small" data-action="leave-table">Leave this table</button></div>`
+          : `${myCodeRow(me)}
+            ${DEMO_ONLY && !state.profiles.some((p) => p.peer === 'test-sam')
+              ? '<div class="small muted">Demo: <button class="linkish" data-action="demo-join">let sam_noodles join with your code</button></div>'
+              : ''}
+            ${tableFriendsHtml()}
+            ${friends.length ? `<div class="card list">${friends.map(dinerRow).join('')}</div>` : ''}
+            <div class="add-grid">
+              <button data-action="open-join">Join a friend’s table<span class="hint">With their join code</span></button>
+            </div>`}
       </section>
 
       <div class="actionbar">
@@ -1818,6 +1837,8 @@
   const JOIN_HOURS = 12;
   const joins = { code: null, stop: null };
   state.joinedCode = loadJSON('sessionStorage', JOINED_KEY);
+  const JOINED_TABLE_KEY = 'foodie.joinedTable';
+  state.joinedTable = loadJSON('sessionStorage', JOINED_TABLE_KEY); // { name } of the host whose table you joined
 
   // Previews only: a simulated table of test users to practice joining. Real codes are
   // 100000–999999, so this one can never belong to a person.
@@ -1890,8 +1911,11 @@
         seat = person;
         state.profiles.push(seat);
       }
+      seat.viaJoin = true;
       state.selected.add(seat.id);
     }
+    state.joinedTable = { name: host.name };
+    saveJSON('sessionStorage', JOINED_TABLE_KEY, state.joinedTable);
     saveProfiles();
     if (send && host.code) {
       state.joinedCode = host.code;
@@ -1919,6 +1943,8 @@
   async function leaveJoin() {
     state.joinedCode = null;
     saveJSON('sessionStorage', JOINED_KEY, null);
+    state.joinedTable = null;
+    saveJSON('sessionStorage', JOINED_TABLE_KEY, null);
     if (!shared.db || !shared.uid) return;
     try {
       const mine = await shared.db.doc(`joins/${shared.uid}`).get();
@@ -1980,6 +2006,15 @@
     },
     'to-account': () => go('account'),
     'open-join': () => go('join'),
+    'leave-table': () => {
+      const host = state.joinedTable?.name;
+      state.profiles = state.profiles.filter((p) => p.owner || !p.viaJoin);
+      state.selected = new Set([...state.selected].filter((id) => state.profiles.some((p) => p.id === id)));
+      saveProfiles();
+      leaveJoin();
+      render();
+      toast(host ? `You left ${host}’s table` : 'You left the table');
+    },
     'fill-test-login': () => {
       document.getElementById('auth-email').value = TEST_LOGIN.email;
       document.getElementById('auth-pass').value = TEST_LOGIN.password;
