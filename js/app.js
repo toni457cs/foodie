@@ -1053,9 +1053,12 @@
     const me = owner();
     if (!me) return go('welcome');
     const friends = state.profiles.filter((p) => !p.owner);
+    if (!signedIn() || state.joinedTable) friends.forEach((p) => state.selected.add(p.id)); // the list isn't editable here
     const joining = friends.filter((p) => state.selected.has(p.id));
     const fresh = state.justFinished === me.id; // cleared when you leave this screen
     const guestAt = state.joinedTable; // set when you joined someone else's table
+    // Only the table's creator, logged in, can change who's joining. Everyone else sees the list.
+    const canEdit = signedIn() && !guestAt;
 
     $app.innerHTML = `
       <section class="stack">
@@ -1084,7 +1087,10 @@
               ? '<div class="small muted">Demo: <button class="linkish" data-action="demo-join">let sam_noodles join with your code</button></div>'
               : ''}
             ${tableFriendsHtml()}
-            ${friends.length ? `<div class="card list">${friends.map(dinerRow).join('')}</div>` : ''}
+            ${friends.length ? `<div class="card list">${friends.map(canEdit ? dinerRow : seatRow).join('')}</div>` : ''}
+            ${friends.length && !canEdit
+              ? '<p class="small muted"><button class="linkish" data-action="sign-in" data-mode="login">Log in</button> to change who’s at your table.</p>'
+              : ''}
             <div class="add-grid">
               <button data-action="open-join">Join a friend’s table<span class="hint">With their join code</span></button>
             </div>`}
@@ -1225,10 +1231,9 @@
         ${harmony ? `<p class="harmony-label">${esc(harmony.label)}</p>` : ''}
         ${error
           ? `<p class="notice error">${esc(error)}</p>
-             <div class="welcome-actions"><button class="primary" data-action="see-picks">Try again</button><button class="ghost" data-action="harmony-cancel">← Change who’s joining</button></div>`
+             <div class="welcome-actions"><button class="primary" data-action="see-picks">Try again</button></div>`
           : `<p class="muted">Finding places for your group…</p>
-             <div class="harmony-bar" aria-hidden="true"><span></span></div>
-             <button class="ghost small" data-action="harmony-cancel">← Change who’s joining</button>`}
+             <div class="harmony-bar" aria-hidden="true"><span></span></div>`}
       </section>`;
     if (state.harmonyStart) {
       // Scheduled once per visit to this screen; re-renders while loading don't add another.
@@ -1312,10 +1317,7 @@
             .slice(0, 40)
             .map((e) => `<li><strong>${esc(e.restaurant.name)}</strong>: ${esc(e.reasons.join('; '))}</li>`)
             .join('')}</ul>
-        </details></section>` : ''}
-      <section class="row">
-        <button class="ghost" data-action="home">← Change who’s joining</button>
-      </section>`;
+        </details></section>` : ''}`;
   }
 
   function render() {
@@ -2345,11 +2347,6 @@
         return go('group');
       }
       seePicks();
-    },
-    'harmony-cancel': () => {
-      clearTimeout(harmonyTimer);
-      state.status = null;
-      go(homeView());
     },
     'see-picks': () => seePicks(),
     loved: (el) => {
