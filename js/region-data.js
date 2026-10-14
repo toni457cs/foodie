@@ -333,6 +333,7 @@
   // feed matching. Places without a reliable description show only the venue type.
   const AMBIENCE = {
     'folsom-chicago-fire': { look: 'Bustling family pizza house' },
+    'folsom-crawdads-on-the-lake': { look: 'Lakeside patio with sunset views and live music', vibes: ['live_music'] },
     'folsom-scott-s-seafood-roundhouse': { look: 'Casual-elegant room with local art', vibes: ['local'] },
     'folsom-riley-s-on-sutter': { look: 'Rustic, relaxed spot facing Sutter St', vibes: ['patio'] },
     'folsom-hacienda-real-mexican-grill': { look: 'Upstairs cantina overlooking old-town Folsom', vibes: ['views'] },
