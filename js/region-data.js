@@ -404,6 +404,7 @@
   const PHOTOS = {
     'folsom-crawdads-on-the-lake': 'Inside Crawdads: the bar and dining room',
     'folsom-chicago-fire': 'Inside Chicago Fire: wood tables, brick walls and the bar',
+    'folsom-hacienda-real-mexican-grill': 'Inside Hacienda Real: the bar, high-top tables and windows onto the balcony',
   };
   for (const [id, alt] of Object.entries(PHOTOS)) {
     const r = REGION.restaurants.find((x) => x.id === id);
