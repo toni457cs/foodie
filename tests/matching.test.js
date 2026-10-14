@@ -212,13 +212,26 @@ test('OpenStreetMap elements become restaurants without invented ratings', () =>
 });
 
 test('region data: Petra Greek in Folsom and Midtown, ZIPs resolve inside the region', () => {
-  const petra = DEMO.restaurants.filter((r) => r.name === 'Petra Greek').map((r) => r.town).sort();
+  const petra = DEMO.allRestaurants.filter((r) => r.name === 'Petra Greek').map((r) => r.town).sort();
   assert.deepEqual(petra, ['Folsom', 'Sacramento']);
-  const ids = DEMO.restaurants.map((r) => r.id);
+  const ids = DEMO.allRestaurants.map((r) => r.id);
   assert.equal(new Set(ids).size, ids.length, 'restaurant ids are unique');
   for (const [zip, [lat, lon]] of Object.entries(DEMO.zips)) {
     const km = Places.haversineKm(lat, lon, DEMO.center.lat, DEMO.center.lon);
     assert.ok(km <= DEMO.radiusKm, `${zip} is ${km} km out`);
+  }
+});
+
+test('featured list: eleven Folsom places cover every genre and vibe, each with a photo', () => {
+  const Quiz = require('../js/quiz.js');
+  assert.equal(DEMO.restaurants.length, 11);
+  const genres = Quiz.QUIZ.find((q) => q.id === 'cuisines').options.map((o) => o.value).filter((v) => v !== 'any');
+  const vibes = Quiz.QUIZ.find((q) => q.id === 'vibes').options.map((o) => o.value);
+  for (const g of genres) assert.ok(DEMO.restaurants.some((r) => r.cuisine.includes(g)), `a place for ${g}`);
+  for (const v of vibes) assert.ok(DEMO.restaurants.some((r) => r.vibes.includes(v)), `a place with ${v}`);
+  for (const r of DEMO.restaurants) {
+    assert.equal(r.town, 'Folsom', r.name);
+    assert.ok(r.photo?.url, `${r.name} has a photo`);
   }
 });
 
@@ -259,10 +272,10 @@ test('occasion highlights say what kind of place it is', () => {
 test('region data: vibe lines are text and every photo file exists', () => {
   const fs = require('node:fs');
   const path = require('node:path');
-  const withLook = DEMO.restaurants.filter((r) => r.look !== undefined);
+  const withLook = DEMO.allRestaurants.filter((r) => r.look !== undefined);
   assert.ok(withLook.length >= 60, 'researched vibe lines are present');
   for (const r of withLook) assert.equal(typeof r.look, 'string', `${r.name} has a text vibe line`);
-  for (const r of DEMO.restaurants.filter((x) => x.photo)) {
+  for (const r of DEMO.allRestaurants.filter((x) => x.photo)) {
     assert.ok(fs.existsSync(path.join(__dirname, '..', r.photo.url)), `${r.name} photo file exists`);
     assert.equal(typeof r.photo.alt, 'string', `${r.name} photo has a description`);
   }

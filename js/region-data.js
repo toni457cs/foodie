@@ -170,7 +170,7 @@
       { peer: 'test-jules', town: 'Midtown Sacramento', profile: { name: 'jules.tacos', cuisines: ['mexican', 'steak'], novelty: 'new',
         noise: 'high', dealbreakers: [], maxWait: 30, diningWith: 'friends', vibes: ['live_music'] },
         card: { name: 'jules.tacos', visibility: 'public', tastes: { cuisines: ['mexican', 'steak'], noise: 'high', vibes: ['live_music'], diningWith: 'friends' },
-        genres: ['mexican'], favorites: [{ name: 'Tank House BBQ', town: 'Sacramento', cuisine: ['steak', 'american'] }] } },
+        genres: ['mexican'], favorites: [{ name: 'Hacienda Real Mexican Grill', town: 'Folsom', cuisine: ['mexican'] }] } },
       { peer: 'test-sam', town: 'Elk Grove', profile: { name: 'sam_noodles', cuisines: ['japanese', 'thai'], novelty: 'favorites',
         noise: 'quiet', dealbreakers: ['loud', 'pricey'], maxWait: 15, diningWith: 'friends', vibes: ['cozy'] } },
     ],
@@ -332,6 +332,7 @@
   // `look` is the "Vibe" line on result cards; added vibes (patio, live music, design…) also
   // feed matching. Places without a reliable description show only the venue type.
   const AMBIENCE = {
+    'folsom-sutter-street-steakhouse': { look: 'Romantic brick steakhouse with a big wine list and patio' },
     'folsom-chicago-fire': { look: 'Bustling family pizza house' },
     'folsom-crawdads-on-the-lake': { look: 'Lakeside patio with sunset views and live music', vibes: ['live_music'] },
     'folsom-scott-s-seafood-roundhouse': { look: 'Casual-elegant room with local art', vibes: ['local'] },
@@ -407,11 +408,9 @@
     'folsom-chicago-fire': 'Inside Chicago Fire: wood tables, brick walls and the bar',
     'folsom-hacienda-real-mexican-grill': 'Inside Hacienda Real: the bar, high-top tables and windows onto the balcony',
     'folsom-sutter-street-steakhouse': 'Sutter Street Steakhouse: brick building with a patio under red umbrellas',
-    'roseville-fat-s-asia-bistro': 'Inside Fat’s Asia Bistro: palm trees and a golden Buddha in the main dining room',
     'folsom-fat-s-asia-bistro': 'Inside Fat’s Asia Bistro: palm trees and a golden Buddha in the main dining room',
     'folsom-folsom-thai-cuisine': ['Inside Folsom Thai Cuisine: a carved Thai-style pavilion over the counter', '50% 35%'],
     'folsom-mylapore': ['Inside Mylapore: the order counter under the menu boards', '50% 45%'],
-    'sacramento-petra-greek': ['Petra Greek: the neon storefront sign over the front doors', '50% 35%'],
     'folsom-petra-greek': ['Petra Greek: the neon storefront sign (Sacramento location)', '50% 35%'],
     'folsom-catherine-s-cr-perie': ['The historic Folsom train depot, home of Catherine’s Crêperie', '50% 40%'],
     'folsom-nara-sushi': ['Inside Nara Sushi: paper lanterns over a wooden counter', '50% 30%'],
@@ -430,6 +429,25 @@
     r.look = a.look;
     if (a.vibes) r.vibes = [...new Set([...r.vibes, ...a.vibes])];
   }
+
+  // The app recommends only these eleven Folsom places: together they cover every food genre
+  // and every vibe in the quiz, and each has a photo. The rest of the list above stays for
+  // reference (REGION.allRestaurants) but is never recommended.
+  const FEATURED = [
+    'folsom-crawdads-on-the-lake',
+    'folsom-sutter-street-steakhouse',
+    'folsom-chicago-fire',
+    'folsom-hacienda-real-mexican-grill',
+    'folsom-fat-s-asia-bistro',
+    'folsom-nara-sushi',
+    'folsom-folsom-thai-cuisine',
+    'folsom-mylapore',
+    'folsom-petra-greek',
+    'folsom-catherine-s-cr-perie',
+    'folsom-the-fat-rabbit-public-house',
+  ];
+  REGION.allRestaurants = REGION.restaurants;
+  REGION.restaurants = FEATURED.map((id) => REGION.allRestaurants.find((r) => r.id === id)).filter(Boolean);
 
   if (typeof module === 'object' && module.exports) module.exports = REGION;
   else root.FOODIE_REGION = REGION;

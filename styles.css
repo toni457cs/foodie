@@ -254,10 +254,39 @@ input[type="password"] {
 #toast[hidden] { display: none; }
 .toast-btn { min-height: 32px; padding: 0 0.8rem; border: 0; background: var(--bg); color: var(--text); font-size: 0.85rem; }
 
-/* Verified photos only (none yet); credit shown under each */
-.result .photo { margin: -18px -18px 12px; }
-.result .photo img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--radius) var(--radius) 0 0; }
-.result .photo figcaption { padding: 4px 18px 0; font-size: 0.75rem; color: var(--muted); }
+/* Result cards: the photo leads, with the name and the feel of the room set over it.
+   Text on the photo uses fixed light ink on a dark fade, so it reads in both themes. */
+.result { padding: 0; overflow: hidden; }
+.result-hero { position: relative; margin: 0; aspect-ratio: 4 / 3; max-width: 100%; overflow: hidden; background: var(--accent-soft); }
+.result-hero img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform 0.7s ease; }
+.result:hover .result-hero img, .result:focus-visible .result-hero img { transform: scale(1.035); }
+.result.has-photo .result-hero::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(to bottom, rgba(22, 19, 15, 0.28) 0%, rgba(22, 19, 15, 0) 26%, rgba(22, 19, 15, 0) 42%, rgba(22, 19, 15, 0.82) 100%);
+}
+.hero-text { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; padding: 20px 18px 16px; color: #fbf8f2; }
+.result .hero-text h3 { margin: 0 0 4px; font: 500 1.7rem/1.08 var(--font-display); color: inherit; text-wrap: balance; text-shadow: 0 1px 14px rgba(0, 0, 0, 0.35); }
+.hero-vibe { margin: 0; font: italic 400 1.02rem/1.35 var(--font-display); opacity: 0.92; text-wrap: pretty; }
+.hero-rank, .hero-match { position: absolute; top: 12px; z-index: 1; border-radius: 999px; }
+.hero-rank {
+  left: 12px; padding: 5px 11px; font: 600 0.68rem/1.3 var(--font-body); letter-spacing: 0.14em; text-transform: uppercase;
+  color: #fbf8f2; background: rgba(22, 19, 15, 0.42); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+}
+.hero-match {
+  right: 12px; display: flex; align-items: baseline; gap: 5px; padding: 5px 12px;
+  background: var(--surface); color: var(--muted); font-size: 0.75rem; box-shadow: 0 2px 12px rgba(0, 0, 0, 0.16);
+}
+.hero-match strong { font: 500 1.15rem/1 var(--font-display); color: var(--accent); font-variant-numeric: tabular-nums; }
+/* No photo yet: a quiet sage panel with the same layout */
+.result:not(.has-photo) .result-hero { aspect-ratio: auto; min-height: 150px; }
+.result:not(.has-photo) .hero-text { color: var(--text); }
+.result:not(.has-photo) .hero-rank { color: var(--accent); background: var(--surface); }
+.result-body { display: grid; gap: 10px; padding: 14px 18px 16px; }
+.result-meta { margin: 0; font-size: 0.85rem; color: var(--muted); }
+.result-blurb { margin: 0; }
+.result .result-body .why, .result .result-body details, .result-actions { margin: 0; }
+.result-address { margin: 0; font-size: 0.75rem; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { .result-hero img { transition: none; } .result:hover .result-hero img { transform: none; } }
 
 /* Why it fits */
 .result .why { margin: 12px 0 4px; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 0.92rem; }

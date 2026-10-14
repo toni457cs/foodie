@@ -374,7 +374,7 @@
   const isTestLogin = (email) => DEMO_ONLY && email.trim().toLowerCase() === TEST_LOGIN.email;
   function testProfile() {
     const saved = {};
-    for (const id of ['folsom-petra-greek', 'sacramento-paragary-s', 'folsom-catherine-s-cr-perie']) {
+    for (const id of ['folsom-petra-greek', 'folsom-crawdads-on-the-lake', 'folsom-catherine-s-cr-perie']) {
       const r = REGION.restaurants.find((x) => x.id === id);
       if (r) saved[id] = { name: r.name, town: r.town || '', cuisine: arr(r.cuisine) };
     }
@@ -384,8 +384,8 @@
       maxWait: 30, diningWith: 'friends', vibes: ['patio', 'design'], zip: '95630',
       bio: 'Always hunting for a good patio.', visibility: 'friends',
       favorites: Object.keys(saved), visited: Object.keys(saved), saved,
-      ratings: { 'folsom-petra-greek': 5, 'sacramento-paragary-s': 4, 'folsom-catherine-s-cr-perie': 5 },
-      reviews: { 'sacramento-paragary-s': { text: 'The garden patio is lovely at dusk.' } },
+      ratings: { 'folsom-petra-greek': 5, 'folsom-crawdads-on-the-lake': 4, 'folsom-catherine-s-cr-perie': 5 },
+      reviews: { 'folsom-crawdads-on-the-lake': { text: 'The lake view at sunset is the best seat in town.' } },
       history: { cuisines: { japanese: 3, mediterranean: 2, italian: 1 }, sessions: 4 },
       updatedAt: new Date().toISOString(),
     };
@@ -1236,7 +1236,7 @@
     const group = selectedProfiles();
     const { results, excluded } = state.outcome;
     const visible = results.filter((r) => !state.hidden.has(r.restaurant.id));
-    const top = visible.slice(0, 10);
+    const top = visible;
     const loc = state.location;
     const estimatedNote = '';
 
@@ -1253,32 +1253,37 @@
       const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${r.name} ${r.lat},${r.lon}`)}`;
       const who = (h) =>
         group.length < 2 ? '' : ` <span class="muted">(${h.who.length === group.length ? 'everyone' : esc(names(h.who))})</span>`;
+      const photo = r.photo?.verified && r.photo.url ? r.photo : null;
+      const blurb = r.blurb && !vibeLine(r).toLowerCase().includes(r.blurb.replace(/\.$/, '').toLowerCase()) ? r.blurb : '';
       return `
-      <article class="card result swipe" tabindex="0" data-rid="${esc(r.id)}" aria-label="${esc(r.name)}. Swipe or press Delete to hide.">
-        ${r.photo?.verified && r.photo.url ? `<figure class="photo"><img src="${esc(r.photo.url)}" alt="${esc(r.photo.alt || r.name)}" loading="lazy"${r.photo.focus ? ` style="object-position:${esc(r.photo.focus)}"` : ''} /><figcaption>${esc(r.photo.credit || '')}</figcaption></figure>` : ''}
-        <div class="spread">
-          <div>
-            <span class="rank">#${i + 1}</span> <h3 style="display:inline">${esc(r.name)}</h3>
-            <div class="small muted">${esc(meta.join(' · '))}</div>
-            ${r.address ? `<div class="small muted">${esc(r.address)}</div>` : ''}
-            <div class="vibe small"><span class="vibe-label">Vibe</span> ${esc(vibeLine(r))}</div>
-            ${r.blurb ? `<div class="small">${esc(r.blurb)}</div>` : ''}
+      <article class="card result swipe ${photo ? 'has-photo' : ''}" tabindex="0" data-rid="${esc(r.id)}" aria-label="${esc(r.name)}, ${pct(res.score)}% match. Swipe or press Delete to hide.">
+        <figure class="result-hero">
+          ${photo ? `<img src="${esc(photo.url)}" alt="${esc(photo.alt || r.name)}" loading="${i < 2 ? 'eager' : 'lazy'}" draggable="false"${photo.focus ? ` style="object-position:${esc(photo.focus)}"` : ''} />` : ''}
+          <span class="hero-rank">No. ${i + 1}</span>
+          <span class="hero-match"><strong>${pct(res.score)}%</strong> match</span>
+          <figcaption class="hero-text">
+            <h3>${esc(r.name)}</h3>
+            <p class="hero-vibe">${esc(vibeLine(r))}</p>
+          </figcaption>
+        </figure>
+        <div class="result-body">
+          <p class="result-meta">${esc(meta.join(' · '))}</p>
+          ${blurb ? `<p class="result-blurb">${esc(blurb)}</p>` : ''}
+          ${res.highlights.length ? `<ul class="why">${res.highlights.slice(0, 3).map((h) => `<li>${esc(h.text)}${who(h)}</li>`).join('')}</ul>` : ''}
+          ${group.length > 1 ? `<details><summary>How each person feels about it</summary>
+            <div class="stack" style="margin-top:8px">${res.members
+              .map(
+                (m) => `<div class="member-row"><span class="name">${esc(m.name)}</span>
+                  <div class="meter"><span class="${scoreClass(m.total)}" style="width:${pct(m.total)}%"></span></div>
+                  <span>${pct(m.total)}%</span></div>`,
+              )
+              .join('')}</div></details>` : ''}
+          <div class="row result-actions">
+            <a class="btn small" href="${mapsUrl}" target="_blank" rel="noopener">Directions</a>
+            ${r.website ? `<a class="btn small" href="${esc(r.website)}" target="_blank" rel="noopener">Website</a>` : ''}
+            <button class="small" data-action="loved" data-rid="${esc(r.id)}">${signedIn() && arr(owner()?.favorites).includes(r.id) ? 'Saved' : 'Save as favorite'}</button>
           </div>
-          <div class="match"><strong>${pct(res.score)}%</strong><span class="small muted">match</span></div>
-        </div>
-        ${res.highlights.length ? `<ul class="why">${res.highlights.slice(0, 3).map((h) => `<li>${esc(h.text)}${who(h)}</li>`).join('')}</ul>` : ''}
-        ${group.length > 1 ? `<details><summary>How each person feels about it</summary>
-          <div class="stack" style="margin-top:8px">${res.members
-            .map(
-              (m) => `<div class="member-row"><span class="name">${esc(m.name)}</span>
-                <div class="meter"><span class="${scoreClass(m.total)}" style="width:${pct(m.total)}%"></span></div>
-                <span>${pct(m.total)}%</span></div>`,
-            )
-            .join('')}</div></details>` : ''}
-        <div class="row" style="margin-top:10px">
-          <a class="btn small" href="${mapsUrl}" target="_blank" rel="noopener">Directions</a>
-          ${r.website ? `<a class="btn small" href="${esc(r.website)}" target="_blank" rel="noopener">Website</a>` : ''}
-          <button class="small" data-action="loved" data-rid="${esc(r.id)}">${signedIn() && arr(owner()?.favorites).includes(r.id) ? 'Saved' : 'Save as favorite'}</button>
+          <p class="result-address">${esc(r.address || '')}${photo?.credit ? ` · ${esc(photo.credit)}` : ''}</p>
         </div>
       </article>`;
     };
@@ -1442,15 +1447,12 @@
   // Location → recommendations
   // ---------------------------------------------------------------------------
 
-  const NEARBY_KM = 16; // about 10 miles
-  const MIN_PICKS = 8;
 
   function regionPlacesNear(location) {
     const withDistance = REGION.restaurants
       .map((r) => ({ ...r, distanceKm: Math.round(Places.haversineKm(location.lat, location.lon, r.lat, r.lon) * 10) / 10 }))
       .sort((a, b) => a.distanceKm - b.distanceKm);
-    const close = withDistance.filter((r) => r.distanceKm <= NEARBY_KM);
-    return close.length >= MIN_PICKS ? close : withDistance.slice(0, MIN_PICKS * 2);
+    return withDistance; // every featured place, nearest first
   }
 
   const inRegion = (loc) => Places.haversineKm(loc.lat, loc.lon, REGION.center.lat, REGION.center.lon) <= REGION.radiusKm;
@@ -1459,22 +1461,12 @@
     state.status = { kind: 'loading', text: `Finding places near ${location.label}…` };
     render();
     try {
-      let restaurants = null;
-      let saved = false;
-      if (!DEMO_ONLY) {
-        try {
-          restaurants = await Places.fetchNearby(location.lat, location.lon);
-        } catch (err) {
-          if (!inRegion(location)) throw err;
-        }
+      // FoodieMatch recommends its eleven featured Folsom places only (see region-data.js).
+      if (!inRegion(location)) {
+        throw new Error('We’re starting with Folsom. Try a ZIP code nearby, like 95630.');
       }
-      if (!restaurants || !restaurants.length) {
-        if (!inRegion(location)) {
-          throw new Error(`We’re starting with the Sacramento area. Try a ZIP code there, like 95630 or 95816.`);
-        }
-        restaurants = regionPlacesNear(location);
-        saved = true;
-      }
+      const restaurants = regionPlacesNear(location);
+      const saved = true;
       state.location = { ...location, saved };
       state.lastRestaurants = restaurants;
       rescore();
