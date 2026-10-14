@@ -509,3 +509,7 @@ label.btn { cursor: pointer; }
 @keyframes harmony-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 @keyframes harmony-breathe { 0%, 100% { transform: scale(1); opacity: 0.85; } 50% { transform: scale(1.06); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .harmony-logo.logo { animation: none; } .harmony-bar span { animation-duration: 0s; } }
+
+/* Dev tool (previews only): a quiet reset link at the very bottom of every screen */
+.dev-tools { max-width: 480px; margin: 0 auto; padding: 0 16px 28px; text-align: center; }
+.dev-tools .ghost { color: var(--muted); font-size: 0.8rem; text-decoration: underline; text-underline-offset: 3px; }

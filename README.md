@@ -23,6 +23,10 @@ You can also double-click `index.html`. Location features work best over `http:/
 
 On phones (under 900px) the app is one 480px column with the main button pinned at the bottom, in thumb reach. On desktop it widens to use the screen: the quiz, forms and log-in stay a comfortable 640px wide (quiz options in two columns), **your table** shows today's profile beside "Who's joining you?", **picks** stay one restaurant per row (so a swipe always moves one place), and **your profile** keeps your photo, bio and settings on the left with friends and favorites on the right. The main button sits under the content instead of pinned to the edge.
 
+## Resetting for a new test session (dev)
+
+Previews have a small **Reset test session** link at the bottom of every screen (tap it twice). Opening the app link with `#reset` on the end does the same. It clears everything FoodieMatch saved in that browser (guest session, accounts and their profiles, quiz drafts, swipes), takes that person's code, join and account entries out of the shared store, and reloads on the welcome screen.
+
 ## How it works
 
 0. **Sessions and privacy**: guests get the original session model. Everything works for one visit, but nothing is saved after the tab closes, and nothing goes into the shared store unless they tap **Get a code**; guest codes expire after 12 hours. Without a login, the app always opens on the welcome screen. Logged-in accounts keep their profile on the device, saved under the account; **Sign Out** ends the session and returns to welcome, and logging back in restores it (same code digits). Friends and shared profile cards are for logged-in accounts. Signing in mid-session carries the guest's work into the account. Opening the app while logged out clears anything an earlier session left in the shared store.

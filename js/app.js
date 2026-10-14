@@ -1340,6 +1340,7 @@
     $app.dataset.view = state.view; // desktop layouts are chosen per screen in styles.css
     views[state.view]();
     renderTopbar();
+    if (typeof renderDevTools === 'function') renderDevTools();
   }
 
   // ---------------------------------------------------------------------------
@@ -2455,7 +2456,7 @@
   document.addEventListener('click', (e) => {
     const el = e.target.closest('[data-action]');
     if (!el || el.tagName === 'INPUT') return;
-    if (!['remove', 'reset', 'unfriend', 'quiz-restart'].includes(el.dataset.action) && state.confirmRemove) state.confirmRemove = null;
+    if (!['remove', 'reset', 'unfriend', 'quiz-restart', 'dev-reset'].includes(el.dataset.action) && state.confirmRemove) state.confirmRemove = null;
     const fn = actions[el.dataset.action];
     if (fn) fn(el);
   });
@@ -2571,6 +2572,76 @@
     if (el.matches('input[data-action="toggle"]')) actions.toggle(el);
   });
 
+  // ---------------------------------------------------------------------------
+  // Dev tool (previews only): wipe everything for a clean test session. Also runs when the
+  // link ends in #reset. Clears this device's FoodieMatch data (accounts, guest session,
+  // quiz drafts, swipes) and takes this person's entries out of the shared store.
+  // ---------------------------------------------------------------------------
+
+  const RESET_FLAG = 'fm-reset-done'; // outside the foodie.* keys, so it survives the wipe
+
+  async function resetTestSession() {
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    await Promise.race([
+      Promise.all([
+        unpublishShortCode(),
+        leaveJoin(),
+        registerSelf({ usernameKey: null, emailHash: null }),
+        shared.db && shared.uid ? shared.db.doc(`links/${shared.uid}`).set({ uids: [], declined: [] }).catch(() => {}) : null,
+      ]).catch(() => {}),
+      wait(4000), // never hang the reset on a slow store
+    ]);
+    for (const store of [localStorage, sessionStorage]) {
+      try {
+        Object.keys(store).filter((k) => k.startsWith('foodie.')).forEach((k) => store.removeItem(k));
+      } catch {
+        /* storage blocked */
+      }
+    }
+    try {
+      sessionStorage.setItem(RESET_FLAG, '1');
+      history.replaceState(null, '', location.pathname + location.search); // drop #reset
+    } catch {
+      /* fine */
+    }
+    location.reload();
+  }
+
+  function renderDevTools() {
+    const el = document.getElementById('dev-tools');
+    if (!el || !DEMO_ONLY) return;
+    el.hidden = false;
+    el.innerHTML = `<button class="ghost small" data-action="dev-reset">${state.confirmRemove === 'dev-reset' ? 'Tap again to reset everything' : 'Reset test session'}</button>`;
+  }
+  actions['dev-reset'] = () => {
+    if (state.confirmRemove !== 'dev-reset') {
+      state.confirmRemove = 'dev-reset';
+      renderDevTools();
+      return;
+    }
+    state.confirmRemove = null;
+    document.getElementById('dev-tools').innerHTML = '<span class="small muted">Resetting…</span>';
+    resetTestSession();
+  };
+
+  const resetRequested = (() => {
+    let done = false;
+    try {
+      done = sessionStorage.getItem(RESET_FLAG) === '1';
+      sessionStorage.removeItem(RESET_FLAG);
+    } catch {
+      /* fine */
+    }
+    return location.hash === '#reset' && !done;
+  })();
+
+  window.addEventListener('hashchange', () => {
+    if (location.hash === '#reset') resetTestSession();
+  });
+
   render();
-  connectStore();
+  renderDevTools();
+  connectStore().finally(() => {
+    if (resetRequested) resetTestSession();
+  });
 })();
