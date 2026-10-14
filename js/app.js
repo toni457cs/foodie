@@ -1073,7 +1073,7 @@
 
       <div class="actionbar">
         <button class="primary block" data-action="to-group">
-          ${joining.length ? `Find a table for ${joining.length + 1}` : 'Just me. Show my picks'}
+          ${joining.length ? 'Find a table for the group' : 'Just me. Show my picks'}
         </button>
       </div>`;
   }
@@ -1189,54 +1189,36 @@
     if (p.owner && !shared.code && shared.db) publishShortCode().then(() => state.view === 'share' && render());
   }
 
+  // Table harmony, shown for a few seconds as a calm loading screen, then straight to picks.
+  const HARMONY_MS = 5000;
+  let harmonyTimer = null;
+
   function renderGroup() {
     const group = selectedProfiles();
-    if (!group.length) return go(homeView());
-    const combined = Match.combineProfiles(group);
+    if (group.length < 2) return go(homeView());
     const harmony = Match.groupHarmony(group);
-    const tally = (items, labels) =>
-      items.map((i) => `<span class="chip">${esc(labels[i.value] || i.value)}${group.length > 1 ? ` ×${i.who.length}` : ''}</span>`).join('') ||
-      '<span class="muted small">none</span>';
-
-    const harmonyHtml = harmony
-      ? `<div class="card stack">
-          <div class="spread"><h2>Table harmony</h2><strong>${pct(harmony.score)}% · ${esc(harmony.label)}</strong></div>
-          <div class="meter"><span class="${scoreClass(harmony.score)}" style="width:${pct(harmony.score)}%"></span></div>
-          ${harmony.pairs
-            .map(
-              (pr) => `<div class="small"><strong>${esc(pr.a)} + ${esc(pr.b)}</strong>: ${pct(pr.score)}%
-              ${pr.shared.map((s) => `<span class="chip good">${esc(s)}</span>`).join('')}</div>`,
-            )
-            .join('')}
-          ${harmony.friction.length ? `<div>${harmony.friction.map((f) => `<span class="chip">${esc(f)}</span>`).join('')}</div>
-            <p class="small muted">We’ll find places everyone can enjoy.</p>` : ''}
-        </div>`
-      : '';
-
-    const status = state.status
-      ? `<div class="notice ${state.status.kind === 'error' ? 'error' : ''}">${esc(state.status.text)}</div>`
-      : '';
-
+    const error = state.status?.kind === 'error' ? state.status.text : '';
     $app.innerHTML = `
-      <section>
-        <h1>${esc(names(group.map((p) => p.name)))}</h1>
-        <p class="muted">Here’s your combined taste profile.</p>
-      </section>
-      <section class="stack">
-        ${harmonyHtml}
-        <div class="card stack small">
-          <h2>Combined profile</h2>
-          <div><strong>Craving:</strong> ${tally(combined.cuisines, LABELS.cuisine)}</div>
-          <div><strong>Vibe:</strong> ${esc(combined.noise)} · <strong>Wait:</strong> ${esc(LABELS.wait[combined.maxWait] || combined.maxWait + ' min')}
-            · <strong>Mood:</strong> ${combined.novelty === 'new' ? 'something new' : combined.novelty === 'mixed' ? 'split: favorites vs. new' : 'favorites'}
-            · <strong>Dining as:</strong> ${esc(LABELS.company[combined.occasion] || combined.occasion)}</div>
-          <div><strong>Loves:</strong> ${tally(combined.vibes, LABELS.vibe)}</div>
-          <div><strong>We’ll skip:</strong> ${tally(combined.dealbreakers, LABELS.dealbreaker)}</div>
-        </div>
-      </section>
-      ${status}
-      <section><button class="ghost" data-action="home">← Change who’s joining</button></section>
-      <div class="actionbar"><button class="primary block" data-action="see-picks">See picks</button></div>`;
+      <section class="harmony-screen" aria-live="polite">
+        <svg class="logo harmony-logo" viewBox="0 0 44 30" aria-hidden="true"><circle class="logo-a" cx="15" cy="15" r="11.5"/><circle class="logo-a" cx="15" cy="15" r="6"/><circle class="logo-b" cx="29" cy="15" r="11.5"/><circle class="logo-b" cx="29" cy="15" r="6"/></svg>
+        <p class="eyebrow">Table harmony</p>
+        <p class="harmony-pct">${harmony ? pct(harmony.score) : 100}<span>%</span></p>
+        ${harmony ? `<p class="harmony-label">${esc(harmony.label)}</p>` : ''}
+        ${error
+          ? `<p class="notice error">${esc(error)}</p>
+             <div class="welcome-actions"><button class="primary" data-action="see-picks">Try again</button><button class="ghost" data-action="harmony-cancel">← Change who’s joining</button></div>`
+          : `<p class="muted">Finding places for ${group.length === 2 ? 'both' : `all ${group.length}`} of you…</p>
+             <div class="harmony-bar" aria-hidden="true"><span></span></div>
+             <button class="ghost small" data-action="harmony-cancel">← Change who’s joining</button>`}
+      </section>`;
+    if (state.harmonyStart) {
+      // Scheduled once per visit to this screen; re-renders while loading don't add another.
+      state.harmonyStart = false;
+      clearTimeout(harmonyTimer);
+      harmonyTimer = setTimeout(() => {
+        if (state.view === 'group') seePicks();
+      }, HARMONY_MS);
+    }
   }
 
   function renderResults() {
@@ -2323,8 +2305,16 @@
     'quiz-back': quizBack,
     'to-group': () => {
       state.status = null;
-      if (selectedProfiles().length > 1) return go('group');
+      if (selectedProfiles().length > 1) {
+        state.harmonyStart = true;
+        return go('group');
+      }
       seePicks();
+    },
+    'harmony-cancel': () => {
+      clearTimeout(harmonyTimer);
+      state.status = null;
+      go(homeView());
     },
     'see-picks': () => seePicks(),
     loved: (el) => {

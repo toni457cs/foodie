@@ -487,13 +487,25 @@ label.btn { cursor: pointer; }
   main[data-view="table"] > * { max-width: none; }
   main[data-view="table"] > .actionbar { grid-column: 1 / -1; }
 
-  /* Picks: the heading across the top, result cards in two columns */
-  main[data-view="results"] > * { max-width: none; }
-  .result-list { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
-  .result-list .card + .card { margin-top: 0; }
+  /* Picks: one restaurant per row on every screen, so swiping always moves one place */
+  main[data-view="results"] > * { max-width: 680px; }
 
   /* Profile: who you are on the left, friends and favorites on the right */
   main[data-view="profile"] { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); column-gap: 48px; align-items: start; }
   main[data-view="profile"] > * { max-width: none; grid-column: 2; }
   main[data-view="profile"] > .profile-head { grid-column: 1; grid-row: 1 / span 4; position: sticky; top: 96px; }
 }
+
+/* Table harmony loading screen: just the score, then on to picks */
+.harmony-screen { display: grid; justify-items: center; align-content: center; gap: 10px; min-height: calc(100svh - 160px); text-align: center; }
+.harmony-screen .eyebrow { margin: 8px 0 0; }
+.harmony-logo.logo { width: 96px; height: 66px; animation: harmony-breathe 2.4s ease-in-out infinite; }
+.harmony-logo.logo circle { stroke-width: 1.8; }
+.harmony-pct { margin: 0; font: 500 5rem/1 var(--font-display); color: var(--text); font-variant-numeric: tabular-nums; }
+.harmony-pct span { font-size: 0.45em; color: var(--muted); margin-left: 2px; }
+.harmony-label { margin: 0; font: italic 400 1.3rem var(--font-display); color: var(--accent); }
+.harmony-bar { width: min(260px, 70%); height: 3px; border-radius: 999px; background: var(--surface-2); overflow: hidden; margin: 6px 0 14px; }
+.harmony-bar span { display: block; height: 100%; width: 100%; background: var(--accent); transform-origin: left; animation: harmony-fill 5s linear forwards; }
+@keyframes harmony-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes harmony-breathe { 0%, 100% { transform: scale(1); opacity: 0.85; } 50% { transform: scale(1.06); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .harmony-logo.logo { animation: none; } .harmony-bar span { animation-duration: 0s; } }
