@@ -398,6 +398,7 @@
       $app.innerHTML = `
         <form id="code-form" class="stack" novalidate>
           ${badge}
+          <p class="eyebrow">Two-step check</p>
           <h1><label for="auth-code">${f.mode === 'signup' ? 'Set up two-factor' : 'Enter your code'}</label></h1>
           <p class="muted">${f.mode === 'signup' ? 'Add FoodieMatch to your authenticator app, then enter the 6-digit code.' : 'Open your authenticator app and enter the 6-digit code.'}</p>
           <p class="testcode">Test code: <strong>${f.code}</strong></p>
@@ -430,7 +431,8 @@
           <button type="button" role="tab" aria-selected="${!signup}" data-action="auth-mode" data-mode="login">Log in</button>
           <button type="button" role="tab" aria-selected="${signup}" data-action="auth-mode" data-mode="signup">Sign up</button>
         </div>
-        <h1>${signup ? 'Create your account' : 'Welcome back'}</h1>
+        <div><p class="eyebrow">${signup ? 'New here' : 'Good to see you'}</p>
+        <h1>${signup ? 'Create your account' : 'Welcome back'}</h1></div>
         <div class="field"><label for="auth-email">Email</label>
           <input type="email" id="auth-email" autocomplete="username" value="${esc(f.email || '')}" /></div>
         <div class="field"><label for="auth-pass">Password</label>
@@ -549,7 +551,7 @@
     const draft = state.accountDraft || {};
     $app.innerHTML = `
       <form id="account-form" class="stack" novalidate>
-        ${state.pendingJoin ? `<p class="eyebrow">Joining ${esc(state.pendingJoin.name)}’s table</p>` : ''}
+        <p class="eyebrow">${state.pendingJoin ? `Joining ${esc(state.pendingJoin.name)}’s table` : 'Let’s get you seated'}</p>
         <h1><label for="acct-name">Choose a username</label></h1>
         <input type="text" id="acct-name" maxlength="40" autocomplete="username" placeholder="Username" aria-describedby="acct-note" value="${esc(draft.name || '')}" />
         <p id="acct-note" class="small muted">Don’t use your full name.</p>
@@ -716,6 +718,7 @@
   function personHtml(card, fallbackName, backLabel, uid) {
     if (!card) {
       return `<section class="stack">
+        <p class="eyebrow">Profile</p>
         <h1>${esc(fallbackName)}</h1>
         <p class="muted">${esc(fallbackName)} keeps their profile private.</p>
         ${connectControl(uid, fallbackName)}
@@ -725,6 +728,7 @@
     return `<section class="profile-head">
         <div class="banner">${bannerHtml(card.header)}</div>
         <div class="profile-id">${avatarHtml(card, 'lg')}</div>
+        <p class="eyebrow">Profile</p>
         <h1>${esc(card.name)}</h1>
         ${card.bio ? `<p class="bio">${esc(card.bio)}</p>` : ''}
         ${card.phone ? `<p class="small">${esc(formatPhone(card.phone))}</p>` : ''}
@@ -769,6 +773,7 @@
         </div>
         <input type="file" id="pick-header" class="file-pick" data-kind="header" accept="image/*" hidden />
         <input type="file" id="pick-avatar" class="file-pick" data-kind="avatar" accept="image/*" hidden />
+        <p class="eyebrow">Your profile</p>
         <h1>${esc(me.name)}</h1>
         ${bio}
         ${me.phone ? `<p class="small">${esc(formatPhone(me.phone))} ${hiddenTag('phone')}</p>` : ''}
@@ -847,7 +852,7 @@
       : `<p class="small muted">Sign up or log in to add an email, a password and two-factor authentication.</p>
         <div><button class="small" data-action="auth-start" data-mode="login">Login/Sign Up</button></div>`;
     $app.innerHTML = `
-      <section><h1>Settings</h1></section>
+      <section><p class="eyebrow">Your account</p><h1>Settings</h1></section>
 
       <section class="card stack">
         <h2>Account</h2>
@@ -1201,6 +1206,7 @@
     const short = p.owner && shared.code;
     $app.innerHTML = `
       <section class="stack">
+        <p class="eyebrow">Share with your group</p>
         <h1>${p.owner ? 'Your code' : `${esc(p.name)}’s code`}</h1>
         <p class="muted">Friends enter it under “Join a friend’s table”.</p>
         <div class="card stack">
@@ -1303,6 +1309,7 @@
 
     $app.innerHTML = `
       <section>
+        <p class="eyebrow">Picked for you</p>
         <h1>${group.length === 1 ? 'Your top picks' : 'Top picks for your group'}</h1>
         <p class="muted">Near ${esc(loc.label)} · ${visible.length} places to enjoy</p>
         ${estimatedNote}
@@ -1855,7 +1862,8 @@
   function renderJoin() {
     $app.innerHTML = `
       <section class="stack">
-        <h1>Join a table</h1>
+        <div><p class="eyebrow">Join a group</p>
+        <h1>Join a table</h1></div>
         <form id="join-form" class="stack" data-form="join" novalidate>
           <label for="join-code"><strong>Join code</strong></label>
           <input type="text" id="join-code" inputmode="numeric" autocomplete="off" placeholder="6-digit code" />

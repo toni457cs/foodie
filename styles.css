@@ -65,7 +65,7 @@ p { margin: 0 0 0.75rem; }
 .small { font-size: 0.875rem; }
 .eyebrow {
   font: 500 0.75rem/1.2 var(--font-body); text-transform: uppercase; letter-spacing: 0.12em;
-  color: var(--muted); margin: 0 0 8px;
+  color: var(--orange); margin: 0 0 8px;
 }
 
 .topbar {
@@ -139,7 +139,7 @@ textarea { font-family: ui-monospace, Menlo, monospace; font-size: 0.8rem; resiz
 
 /* Quiz */
 .progress { height: 3px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
-.progress > span { display: block; height: 100%; background: var(--accent); transition: width 0.35s ease; }
+.progress > span { display: block; height: 100%; background: var(--orange); transition: width 0.35s ease; }
 .options { display: grid; gap: 8px; }
 .option {
   justify-content: flex-start; text-align: left; border-radius: 14px; min-height: 56px; padding: 10px 16px;
@@ -419,7 +419,7 @@ label.btn { cursor: pointer; }
 .friend .who { min-width: 0; }
 .friend-actions { grid-column: 2; display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
 .friend-actions button { min-height: 40px; padding: 0 1rem; }
-.count { display: inline-block; min-width: 1.6em; padding: 0 0.4em; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font: 500 0.85rem/1.6 var(--font-body); text-align: center; vertical-align: middle; }
+.count { display: inline-block; min-width: 1.6em; padding: 0 0.4em; border-radius: 999px; background: var(--orange-soft); color: var(--orange-ink); font: 500 0.85rem/1.6 var(--font-body); text-align: center; vertical-align: middle; }
 .request-note { width: 100%; justify-content: flex-start; min-height: 48px; border: 1px solid var(--accent); background: var(--accent-soft); color: var(--text); font-weight: 400; border-radius: var(--radius-field, 12px); }
 .me-btn { position: relative; }
 .req-dot { position: absolute; top: 9px; right: 9px; width: 9px; height: 9px; border-radius: 50%; background: var(--wine); box-shadow: 0 0 0 2px var(--bg); }
