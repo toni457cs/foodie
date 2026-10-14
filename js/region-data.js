@@ -339,11 +339,6 @@
     'folsom-hacienda-real-mexican-grill': { look: 'Upstairs cantina overlooking old-town Folsom', vibes: ['views'] },
     'folsom-the-fat-rabbit-public-house': { look: 'British-style pub, wood and brass; order at the bar', vibes: ['cozy'] },
     'folsom-catherine-s-cr-perie': { look: 'Weekend crêpe counter in the historic train depot', vibes: ['local'] },
-    'folsom-fat-s-asia-bistro': 'Inside Fat’s Asia Bistro: palm trees and a golden Buddha in the main dining room',
-    'folsom-folsom-thai-cuisine': ['Inside Folsom Thai Cuisine: a carved Thai-style pavilion over the counter', '50% 35%'],
-    'folsom-mylapore': ['Inside Mylapore: the order counter under the menu boards', '50% 45%'],
-    'sacramento-petra-greek': ['Petra Greek: the neon storefront sign over the front doors', '50% 35%'],
-    'folsom-petra-greek': ['Petra Greek: the neon storefront sign (Sacramento location)', '50% 35%'],
     'folsom-nara-sushi': { look: 'Modern, clean sushi room' },
     'folsom-mexquite-mexican-cuisine': { look: 'Festive room with a tequila lounge', vibes: ['patio'] },
     'folsom-chops-restaurant': { look: 'Casual-elegant steakhouse with a lively bar' },
@@ -417,6 +412,7 @@
     'folsom-mylapore': ['Inside Mylapore: the order counter under the menu boards', '50% 45%'],
     'sacramento-petra-greek': ['Petra Greek: the neon storefront sign over the front doors', '50% 35%'],
     'folsom-petra-greek': ['Petra Greek: the neon storefront sign (Sacramento location)', '50% 35%'],
+    'folsom-catherine-s-cr-perie': ['The historic Folsom train depot, home of Catherine’s Crêperie', '50% 40%'],
     'folsom-nara-sushi': ['Inside Nara Sushi: paper lanterns over a wooden counter', '50% 30%'],
   };
   // A value is the photo's description, or [description, focus] where focus is the CSS

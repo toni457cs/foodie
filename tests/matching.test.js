@@ -255,3 +255,15 @@ test('occasion highlights say what kind of place it is', () => {
   const pub = place({ name: 'Pub', venue: 'pub', goodFor: ['friends'] });
   assert.ok(Match.scoreMember(pub, profile({ name: 'A', diningWith: 'friends' }), { occasion: 'friends' }).likes.includes('Pub atmosphere for a night out'));
 });
+
+test('region data: vibe lines are text and every photo file exists', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const withLook = DEMO.restaurants.filter((r) => r.look !== undefined);
+  assert.ok(withLook.length >= 60, 'researched vibe lines are present');
+  for (const r of withLook) assert.equal(typeof r.look, 'string', `${r.name} has a text vibe line`);
+  for (const r of DEMO.restaurants.filter((x) => x.photo)) {
+    assert.ok(fs.existsSync(path.join(__dirname, '..', r.photo.url)), `${r.name} photo file exists`);
+    assert.equal(typeof r.photo.alt, 'string', `${r.name} photo has a description`);
+  }
+});
