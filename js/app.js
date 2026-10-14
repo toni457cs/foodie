@@ -1255,7 +1255,7 @@
         group.length < 2 ? '' : ` <span class="muted">(${h.who.length === group.length ? 'everyone' : esc(names(h.who))})</span>`;
       return `
       <article class="card result swipe" tabindex="0" data-rid="${esc(r.id)}" aria-label="${esc(r.name)}. Swipe or press Delete to hide.">
-        ${r.photo?.verified && r.photo.url ? `<figure class="photo"><img src="${esc(r.photo.url)}" alt="${esc(r.name)}" loading="lazy" /><figcaption>${esc(r.photo.credit || '')}</figcaption></figure>` : ''}
+        ${r.photo?.verified && r.photo.url ? `<figure class="photo"><img src="${esc(r.photo.url)}" alt="${esc(r.photo.alt || r.name)}" loading="lazy" /><figcaption>${esc(r.photo.credit || '')}</figcaption></figure>` : ''}
         <div class="spread">
           <div>
             <span class="rank">#${i + 1}</span> <h3 style="display:inline">${esc(r.name)}</h3>

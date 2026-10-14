@@ -399,6 +399,16 @@
     'fair-oaks-shangri-la': { look: 'Midcentury resort-style patio with fire pits and bocce', vibes: ['design'] },
     'fair-oaks-fabian-s-italian-bistro': { look: 'Cozy, intimate neighborhood bistro', vibes: ['cozy', 'patio'] },
   };
+  // Restaurant photos supplied for this class project, one per place, stored in img/places/
+  // under the restaurant's id. Only these are shown; nothing is generated or pulled from elsewhere.
+  const PHOTOS = {
+    'folsom-crawdads-on-the-lake': 'Inside Crawdads: the bar and dining room',
+  };
+  for (const [id, alt] of Object.entries(PHOTOS)) {
+    const r = REGION.restaurants.find((x) => x.id === id);
+    if (r) r.photo = { url: `img/places/${id}.webp`, alt, credit: 'Photo shared for the FoodieMatch class project', verified: true };
+  }
+
   for (const r of REGION.restaurants) {
     const a = AMBIENCE[r.id];
     if (!a) continue;
