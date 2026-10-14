@@ -284,7 +284,7 @@
     $app.innerHTML = `
       <section class="hero welcome">
         <svg class="logo hero-logo" viewBox="0 0 44 30" aria-hidden="true"><circle class="logo-a" cx="15" cy="15" r="11.5"/><circle class="logo-a" cx="15" cy="15" r="6"/><circle class="logo-b" cx="29" cy="15" r="11.5"/><circle class="logo-b" cx="29" cy="15" r="6"/></svg>
-        <h1>Many cravings. One table.</h1>
+        <h1>Many cravings. <em>One table.</em></h1>
         <div class="welcome-actions">
           <button class="primary" data-action="auth-start" data-mode="login">Login/Sign Up</button>
           <button data-action="continue-guest">Continue as guest</button>
