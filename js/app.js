@@ -383,6 +383,7 @@
       cuisines: ['japanese', 'mediterranean'], novelty: 'new', noise: 'buzz', dealbreakers: ['loud'],
       maxWait: 30, diningWith: 'friends', vibes: ['patio', 'design'], zip: '95630',
       bio: 'Always hunting for a good patio.', visibility: 'friends',
+      avatar: window.FOODIE_DEMO_IMAGES?.avatar, header: window.FOODIE_DEMO_IMAGES?.header,
       favorites: Object.keys(saved), visited: Object.keys(saved), saved,
       ratings: { 'folsom-petra-greek': 5, 'folsom-crawdads-on-the-lake': 4, 'folsom-catherine-s-cr-perie': 5 },
       reviews: { 'folsom-crawdads-on-the-lake': { text: 'The lake view at sunset is the best seat in town.' } },
@@ -504,6 +505,11 @@
     saveJSON('localStorage', AUTH_KEY, state.auth);
     let saved = loadProfiles();
     if (f.test && !saved.some((p) => p.owner)) saved = [testProfile()];
+    if (f.test) {
+      // Older test profiles predate the filler photo and header.
+      const t = saved.find((p) => p.owner);
+      if (t && !t.avatar && !t.header) Object.assign(t, { avatar: window.FOODIE_DEMO_IMAGES?.avatar, header: window.FOODIE_DEMO_IMAGES?.header });
+    }
     const savedOwner = saved.find((p) => p.owner);
     if (savedOwner) {
       // This account already has a profile: open it, and keep friends added this session.
@@ -1141,7 +1147,10 @@
       const zip = q.type === 'zip';
       body = `<input type="text" id="q-text" maxlength="${zip ? 5 : 40}" placeholder="${esc(q.placeholder)}" value="${esc(value || '')}"
         ${zip ? 'inputmode="numeric" autocomplete="postal-code"' : 'autocomplete="off"'} />
-        ${zip ? `<p id="zip-note" class="small muted" ${zipValid(value) || !value ? 'hidden' : ''}>${esc(zipNote(value))}</p>` : ''}`;
+        ${zip ? `<p id="zip-note" class="small muted" ${zipValid(value) || !value ? 'hidden' : ''}>${esc(zipNote(value))}</p>` : ''}
+        ${zip && DEMO_ONLY
+          ? `<p class="small muted test-zip">Testing? <button type="button" class="chip-btn" data-action="test-zip">Use ${TEST_ZIP} (Folsom)</button> It’s closest to all 11 restaurants.</p>`
+          : ''}`;
     } else {
       const isOn = (v) => (q.type === 'multi' ? arr(value).includes(v) : value === v);
       const full = q.type === 'multi' && q.max && arr(value).filter((v) => v !== q.exclusive).length >= q.max;
@@ -1356,8 +1365,10 @@
 
   // ZIP codes: the saved Sacramento list in previews; any 5-digit US ZIP in the full app.
   const zipValid = (v) => /^\d{5}$/.test(v || '') && (!DEMO_ONLY || !!REGION.zips[v]);
-  const zipNote = (v) => (/^\d{5}$/.test(v || '') ? 'We’re starting with the Sacramento area. Try 95630 or 95816.' : '');
+  const zipNote = (v) => (/^\d{5}$/.test(v || '') ? 'We’re starting with Folsom. Try 95630.' : '');
   const zipTown = (zip) => (REGION.zips[zip] ? REGION.zips[zip][2] : zip);
+
+  const TEST_ZIP = '95630'; // central Folsom: every featured restaurant is within about 2.5 miles
 
   function startQuiz(existing, { skipName = false, isNew = false } = {}) {
     const answers = existing ? structuredClone(existing) : { cuisines: [], dealbreakers: [], vibes: [] };
@@ -2017,6 +2028,13 @@
     },
     'to-account': () => go('account'),
     'open-join': () => go('join'),
+    'test-zip': () => {
+      const input = document.getElementById('q-text');
+      if (!input) return;
+      input.value = TEST_ZIP;
+      input.dispatchEvent(new Event('input'));
+      input.focus();
+    },
     'leave-table': () => {
       const host = state.joinedTable?.name;
       state.profiles = state.profiles.filter((p) => p.owner || !p.viaJoin);

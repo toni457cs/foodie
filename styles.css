@@ -521,3 +521,8 @@ label.btn { cursor: pointer; }
 .dev-tools { max-width: 480px; margin: 0 auto; padding: 0 16px 28px; text-align: center; }
 .dev-tools .ghost { color: var(--muted); font-size: 0.8rem; text-decoration: underline; text-underline-offset: 3px; }
 .hero h1 em { font-style: italic; color: var(--orange); }
+
+/* One-tap test ZIP on the location question (previews only) */
+.test-zip { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.chip-btn { min-height: 34px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--orange); background: var(--orange-soft); color: var(--orange-ink); font-size: 0.85rem; }
+.chip-btn:hover { border-color: var(--orange); filter: brightness(1.03); }
