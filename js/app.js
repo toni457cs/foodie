@@ -1207,7 +1207,7 @@
         ${error
           ? `<p class="notice error">${esc(error)}</p>
              <div class="welcome-actions"><button class="primary" data-action="see-picks">Try again</button><button class="ghost" data-action="harmony-cancel">← Change who’s joining</button></div>`
-          : `<p class="muted">Finding places for ${group.length === 2 ? 'both' : `all ${group.length}`} of you…</p>
+          : `<p class="muted">Finding places for your group…</p>
              <div class="harmony-bar" aria-hidden="true"><span></span></div>
              <button class="ghost small" data-action="harmony-cancel">← Change who’s joining</button>`}
       </section>`;
@@ -1279,7 +1279,7 @@
 
     $app.innerHTML = `
       <section>
-        <h1>${group.length === 1 ? 'Your top picks' : group.length > 3 ? `Top picks for your table of ${group.length}` : `Top picks for ${esc(names(group.map((p) => p.name)))}`}</h1>
+        <h1>${group.length === 1 ? 'Your top picks' : 'Top picks for your group'}</h1>
         <p class="muted">Near ${esc(loc.label)} · ${visible.length} places to enjoy</p>
         ${estimatedNote}
         <p class="small muted">Swipe a card away to hide it for this session.${state.hidden.size ? ` <button class="linkish" data-action="unhide">Show ${state.hidden.size} hidden</button>` : ''}</p>
