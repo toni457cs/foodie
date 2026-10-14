@@ -406,6 +406,7 @@
     'folsom-chicago-fire': 'Inside Chicago Fire: wood tables, brick walls and the bar',
     'folsom-hacienda-real-mexican-grill': 'Inside Hacienda Real: the bar, high-top tables and windows onto the balcony',
     'folsom-sutter-street-steakhouse': 'Sutter Street Steakhouse: brick building with a patio under red umbrellas',
+    'roseville-fat-s-asia-bistro': 'Inside Fat’s Asia Bistro: palm trees and a golden Buddha in the main dining room',
   };
   for (const [id, alt] of Object.entries(PHOTOS)) {
     const r = REGION.restaurants.find((x) => x.id === id);
