@@ -403,6 +403,7 @@
   // under the restaurant's id. Only these are shown; nothing is generated or pulled from elsewhere.
   const PHOTOS = {
     'folsom-crawdads-on-the-lake': 'Inside Crawdads: the bar and dining room',
+    'folsom-the-fat-rabbit-public-house': ['Inside The Fat Rabbit: the wooden bar, taps and chalkboard beer list', '50% 55%'],
     'folsom-chicago-fire': 'Inside Chicago Fire: wood tables, brick walls and the bar',
     'folsom-hacienda-real-mexican-grill': 'Inside Hacienda Real: the bar, high-top tables and windows onto the balcony',
     'folsom-sutter-street-steakhouse': 'Sutter Street Steakhouse: brick building with a patio under red umbrellas',
