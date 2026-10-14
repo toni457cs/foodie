@@ -403,6 +403,7 @@
   // under the restaurant's id. Only these are shown; nothing is generated or pulled from elsewhere.
   const PHOTOS = {
     'folsom-crawdads-on-the-lake': 'Inside Crawdads: the bar and dining room',
+    'folsom-chicago-fire': 'Inside Chicago Fire: wood tables, brick walls and the bar',
   };
   for (const [id, alt] of Object.entries(PHOTOS)) {
     const r = REGION.restaurants.find((x) => x.id === id);
