@@ -553,6 +553,15 @@
     go(owner() ? 'table' : 'account');
   }
 
+  // Usernames: letters, numbers, spaces and . _ - only, with at least one letter or number.
+  const USERNAME_OK = /^[\p{L}\p{N} ._-]+$/u;
+  const usernameProblem = (name) =>
+    !name ? 'Add a username to continue.'
+      : !USERNAME_OK.test(name) || !/[\p{L}\p{N}]/u.test(name) ? 'Use letters or numbers. You can also use . _ or -.'
+        : '';
+  /** A name that reads well in a greeting; empty if there's nothing to say. */
+  const greetName = (name) => String(name || '').replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
+
   function renderAccount() {
     const draft = state.accountDraft || {};
     $app.innerHTML = `
@@ -572,9 +581,10 @@
       e.preventDefault();
       const name = document.getElementById('acct-name').value.trim();
       state.accountDraft = { name };
-      if (!name) {
+      const problem = usernameProblem(name);
+      if (problem) {
         const error = document.getElementById('acct-error');
-        error.textContent = 'Add a username to continue.';
+        error.textContent = problem;
         error.hidden = false;
         return;
       }
@@ -1074,7 +1084,9 @@
     $app.innerHTML = `
       <section class="stack">
         <p class="eyebrow">${fresh ? 'Your taste profile is ready' : 'Welcome back'}</p>
-        <h1>${fresh ? `Nice to meet you, ${esc(me.name)}.` : `Hungry, ${esc(me.name)}?`}</h1>
+        <h1>${fresh
+          ? (greetName(me.name) ? `Nice to meet you, ${esc(greetName(me.name))}.` : 'Nice to meet you.')
+          : (greetName(me.name) ? `Hungry, ${esc(greetName(me.name))}?` : 'Hungry?')}</h1>
         <div class="card me">
           <div class="spread">
             <h2>Today I’m feeling…</h2>
@@ -2532,7 +2544,8 @@
     username: async () => {
       const me = owner();
       const name = document.getElementById('set-name').value.trim().slice(0, 40);
-      if (!name) return toast('Add a username to save.');
+      const problem = usernameProblem(name);
+      if (problem) return toast(problem === 'Add a username to continue.' ? 'Add a username to save.' : problem);
       if (usernameKey(name) !== usernameKey(me.name) && (await usernameTaken(name))) return toast('That username is taken. Try another.');
       me.name = name;
       if (signedIn()) registerSelf({ usernameKey: usernameKey(name) });
