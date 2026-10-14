@@ -528,6 +528,13 @@
     startSocial();
     state.authFlow = null;
     const msg = `${f.mode === 'signup' ? 'Account created' : 'Logged in'}${f.twoFactor ? ' with two-factor on' : ''}`;
+    // Every log-in starts a fresh quiz for today, unless this visit already has answers
+    // (a guest who took the quiz, or one in progress). Past answers are kept as history.
+    if (savedOwner && !guestQuiz && !guestProfiles.some((p) => p.owner)) {
+      startFreshQuiz(owner());
+      toast(`${msg}. What are you in the mood for today?`);
+      return;
+    }
     if (f.next) {
       f.next();
       if (state.view === 'quiz' && state.quiz) toast(`${msg}. Your answers are saved.`, { label: 'Start over', run: restartQuiz });
@@ -1125,7 +1132,7 @@
         : q.type === 'zip' ? zipValid(value)
           : q.type === 'text' ? !!(value || '').trim()
             : value !== undefined;
-    const showNext = q.type !== 'single';
+    const showNext = true; // single-choice answers also advance on tap; Next is there for answers already picked
     const last = step === steps.length - 1;
     $app.innerHTML = `
       ${progress}
@@ -1355,6 +1362,14 @@
     go('quiz');
   }
 
+  /** A new quiz for today. Last time's answers are kept as `previous`; today's always win. */
+  function startFreshQuiz(me) {
+    const previous = Object.fromEntries(QUIZ_FIELDS.filter((k) => k !== 'zip').map((k) => [k, me[k]]));
+    const fresh = { ...me, previous, cuisines: [], dealbreakers: [], vibes: [] };
+    for (const k of ['novelty', 'noise', 'maxWait', 'diningWith']) delete fresh[k];
+    startQuiz(fresh); // the ZIP stays filled in; everything else is asked again
+  }
+
   function answer(rawValue) {
     const q = state.quiz.steps[state.quiz.step];
     const opt = q.options.find((o) => String(o.value) === rawValue);
@@ -1417,6 +1432,12 @@
       id: state.quiz.editingId || a.id || newId(),
       updatedAt: new Date().toISOString(),
     };
+    if (profile.owner && profile.previous) {
+      // Use old data, but today comes first: an optional answer skipped today falls back to last time.
+      if (!arr(profile.vibes).length && arr(profile.previous.vibes).length) profile.vibes = profile.previous.vibes;
+      profile.lastAnswers = profile.previous;
+      delete profile.previous;
+    }
     if (profile.owner) {
       // Track top genres over time. Today's craving still wins in matching; history only
       // steers "Surprise me" days.
