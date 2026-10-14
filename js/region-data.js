@@ -407,10 +407,14 @@
     'folsom-hacienda-real-mexican-grill': 'Inside Hacienda Real: the bar, high-top tables and windows onto the balcony',
     'folsom-sutter-street-steakhouse': 'Sutter Street Steakhouse: brick building with a patio under red umbrellas',
     'roseville-fat-s-asia-bistro': 'Inside Fat’s Asia Bistro: palm trees and a golden Buddha in the main dining room',
+    'folsom-nara-sushi': ['Inside Nara Sushi: paper lanterns over a wooden counter', '50% 30%'],
   };
-  for (const [id, alt] of Object.entries(PHOTOS)) {
+  // A value is the photo's description, or [description, focus] where focus is the CSS
+  // object-position to keep in view when the card crops the photo to 16:9.
+  for (const [id, entry] of Object.entries(PHOTOS)) {
+    const [alt, focus] = Array.isArray(entry) ? entry : [entry];
     const r = REGION.restaurants.find((x) => x.id === id);
-    if (r) r.photo = { url: `img/places/${id}.webp`, alt, credit: 'Photo shared for the FoodieMatch class project', verified: true };
+    if (r) r.photo = { url: `img/places/${id}.webp`, alt, focus, credit: 'Photo shared for the FoodieMatch class project', verified: true };
   }
 
   for (const r of REGION.restaurants) {
